@@ -33,7 +33,7 @@ Enter a ZIP Code to lookup => 12180
 
 пример:
 Command ('loc', 'zip', 'dist', 'end') => zip
-Enter a city name to lookup => troY
+Enter a city name to lookup => troy
 Enter the state name to lookup => ny
 
 
