@@ -21,5 +21,3 @@ def load_markets(path):
             )
             markets.append(market) ## добавляем в конец списка
     return markets
-
-print(load_markets("Export.csv"))
