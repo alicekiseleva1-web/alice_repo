@@ -19,6 +19,20 @@ def haversine(lat1, lon1, lat2, lon2):
 
     return r * c
 
+def format_coordinate(value, is_latitude):
+    """Преобразует координату из десятичных градусов в формат DMS."""
+    degrees = int(abs(value))
+    minutes_float = (abs(value) - degrees) * 60
+    minutes = int(minutes_float)
+    seconds = (minutes_float - minutes) * 60
+
+    if is_latitude:
+        direction = "N" if value >= 0 else "S"
+    else:
+        direction = "E" if value >= 0 else "W"
+
+    return f"{degrees:03d}°{minutes:02d}'{seconds:05.2f}\"{direction}"
+
 
 def main():
     zip_codes = zip_util.read_zip_all()
@@ -61,7 +75,11 @@ def main():
             data = zip_dict[zipcode]
 
             print(f"ZIP Code {zipcode} is in {data['city']}, {data['state']}, {data['county']} county")
-            print(f"coordinates: ({data['lat']:.6f}, {data['lon']:.6f})")
+            # формат координат
+            lat = format_coordinate(data["lat"], True)
+            lon = format_coordinate(data["lon"], False)
+
+            print(f"coordinates: ({lat},{lon})")
 
         elif command == "zip":
             city = input("Enter a city name to lookup => ").strip()
