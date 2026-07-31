@@ -1,5 +1,7 @@
 ## действия с рынками
 
+from review import Review
+
 ## поиск по городу
 def find_by_city(markets, city):
     result = []
@@ -44,13 +46,15 @@ def show_page(markets, page, page_size):
 
 
 ## добавить отзыв
+
 def add_review(market, first_name, last_name, rating, text):
-    review = {
-        "first_name": first_name,
-        "last_name": last_name,
-        "rating": rating,
-        "text": text
-    }
+
+    review = Review(
+        first_name,
+        last_name,
+        rating,
+        text
+    )
 
     market.reviews.append(review)
 
@@ -65,7 +69,7 @@ def get_average_rating(market):
     total = 0
 
     for review in reviews:
-        total += review["rating"]
+        total += review.rating
 
     return total / len(reviews)
 
