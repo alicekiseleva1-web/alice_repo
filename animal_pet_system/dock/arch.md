@@ -19,20 +19,7 @@ JWT Authentication — авторизация через токены (мб се
 main
 api
 dict
-
-таблицы схемы dict:
-dict.city - справочник городов
-структура таблицы:
-city_id
-
-dict.animal_status
-dict.report_type
-dict.user_role
-dict.gender
-
-
-БД: PostgreSQL
-Структура БД:
+auth
 
 схема api:
 функции для апи
@@ -132,3 +119,85 @@ created_at
 8. Заявки помощи приюту
 main.help_requests
 
+
+список апишек:
+# API список
+
+## Auth
+
+POST /api/auth/register
+
+POST /api/auth/login
+
+POST /api/auth/verify
+
+POST /api/auth/refresh
+
+
+## Users
+
+GET /api/users/me
+
+PUT /api/users/me
+
+
+## Animals
+
+POST /api/animals
+
+GET /api/animals/{animal_id}
+
+PUT /api/animals/{animal_id}
+
+POST /api/animals/{animal_id}/photos
+
+GET /api/animals/{animal_id}/photos
+
+GET /api/animals/search
+
+
+## Reports
+
+POST /api/reports
+
+GET /api/reports
+
+GET /api/reports/{report_id}
+
+PUT /api/reports/{report_id}
+
+PUT /api/reports/{report_id}/close
+
+
+## Messages
+
+POST /api/reports/{report_id}/messages
+
+GET /api/reports/{report_id}/messages
+
+
+## Shelters
+
+GET /api/shelters
+
+GET /api/shelters/{shelter_id}
+
+POST /api/shelters
+
+PUT /api/shelters/{shelter_id}
+
+
+## Help Requests
+
+POST /api/help_requests
+
+GET /api/help_requests
+
+PUT /api/help_requests/{request_id}
+
+
+## Admin
+
+GET /api/admin/users
+
+PUT /api/admin/users/{user_id}/role
