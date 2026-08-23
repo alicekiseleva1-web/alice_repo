@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
-from app.schemas.user import UserCreate
-from app.services.user_service import register_user
+from app.schemas.user import UserCreate, UserLogin
+from app.services.user_service import register_user, login_user
 
 from app.schemas.user import UserDetail
 from app.services.user_service import get_user
@@ -23,11 +23,30 @@ def create_user(user: UserCreate):
         user.city_id,
         user.phone,
         user.email,
-        user.password_hash
+        user.password
     )
 
 
     ## возвращаем результат
+    return {
+        "user_id": user_id
+    }
+
+
+@router.post("/login")
+def login_route(user: UserLogin):
+
+    user_id = login_user(
+        user.email,
+        user.password
+    )
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail="неверный email или пароль"
+        )
+
     return {
         "user_id": user_id
     }

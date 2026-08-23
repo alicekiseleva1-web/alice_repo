@@ -113,6 +113,47 @@ end;
 $$;
 
 
+-- данные пользователя для проверки входа
+
+create or replace function main.get_user_credentials(
+    email_value varchar
+)
+returns table
+(
+    user_id integer,
+    password_hash varchar
+)
+language sql
+stable
+as
+$$
+    select
+        u.user_id,
+        u.password_hash
+    from main.user u
+    where u.email = email_value;
+$$;
+
+
+-- api данные пользователя для проверки входа
+
+create or replace function api.get_user_credentials(
+    email_value varchar
+)
+returns table
+(
+    user_id integer,
+    password_hash varchar
+)
+language sql
+stable
+as
+$$
+    select *
+    from main.get_user_credentials(email_value);
+$$;
+
+
 -- создание животного
 
 create or replace function main.create_animal(
