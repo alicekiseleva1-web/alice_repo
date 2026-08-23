@@ -1,4 +1,5 @@
 from app.db import get_connection
+from app.security import hash_password, verify_password
 
 
 ## регистрация пользователя
@@ -9,7 +10,7 @@ def register_user(
     city_id,
     phone,
     email,
-    password_hash
+    password
 ):
 
     ## подключение к пг
@@ -41,7 +42,7 @@ def register_user(
                 city_id,
                 phone,
                 email,
-                password_hash
+                hash_password(password)
             )
         )
 
@@ -100,6 +101,45 @@ def get_user(user_id):
         result = cursor.fetchone()
 
         return result
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        connection.close()
+
+
+def login_user(email, password):
+
+    connection = get_connection()
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            select *
+            from api.get_user_credentials(%s)
+            """,
+            (
+                email,
+            )
+        )
+
+        result = cursor.fetchone()
+
+        if result is None:
+            return None
+
+        user_id, password_hash = result
+
+        if not verify_password(password, password_hash):
+            return None
+
+        return user_id
 
     finally:
 
