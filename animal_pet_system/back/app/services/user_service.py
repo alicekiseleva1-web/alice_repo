@@ -2,7 +2,7 @@ from app.db import get_connection
 
 
 ## регистрация пользователя
-## вызывает функцию PostgreSQL api.register_user()
+## вызывает функцию api.register_user()
 def register_user(
     first_name,
     last_name,
@@ -12,7 +12,7 @@ def register_user(
     password_hash
 ):
 
-    ## подключение к PostgreSQL
+    ## подключение к пг
     connection = get_connection()
 
     cursor = None
@@ -23,7 +23,7 @@ def register_user(
         cursor = connection.cursor()
 
 
-        ## вызов функции PostgreSQL
+        ## вызов функции 
         cursor.execute(
             """
             select api.register_user(
@@ -74,4 +74,36 @@ def register_user(
 
 
         ## закрытие соединения
+        connection.close()
+
+## карточка пользователя
+## вызывает api.get_user()
+def get_user(user_id):
+
+    connection = get_connection()
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            select *
+            from api.get_user(%s)
+            """,
+            (
+                user_id,
+            )
+        )
+
+        result = cursor.fetchone()
+
+        return result
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
         connection.close()

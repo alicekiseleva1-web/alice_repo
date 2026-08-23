@@ -4,6 +4,10 @@ from fastapi.responses import JSONResponse
 from app.db import get_connection
 from app.routers import users
 from app.routers import animals
+from app.routers import reports
+from app.routers import messages
+from app.routers import photos
+from app.routers import help_requests
 
 app = FastAPI()
 
@@ -11,6 +15,10 @@ app = FastAPI()
 ## подключение роутеров
 app.include_router(users.router)
 app.include_router(animals.router)
+app.include_router(reports.router)
+app.include_router(messages.router)
+app.include_router(photos.router)
+app.include_router(help_requests.router)
 
 ## глобальный обработчик ошибок
 ## отдаёт только понятный текст ошибки

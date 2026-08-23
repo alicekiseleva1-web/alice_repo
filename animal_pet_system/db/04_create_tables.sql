@@ -5,49 +5,43 @@ create table dict.city (
     name varchar(100) not null
 );
 
-
 create table dict.animal_status (
     status_id serial primary key,
     code varchar(50) not null unique
 );
-
 
 create table dict.report_type (
     report_type_id serial primary key,
     code varchar(50) not null unique
 );
 
+create table dict.report_status (
+    report_status_id serial primary key,
+    code varchar(50) not null unique
+);
 
 create table dict.user_role (
     role_id serial primary key,
     code varchar(50) not null unique
 );
 
-
 create table dict.gender (
     gender_id serial primary key,
     code varchar(50) not null unique
 );
 
-create table dict.help_request_status
-(
+create table dict.help_request_status (
     help_request_status_id serial primary key,
     code varchar(50) not null unique,
     name varchar(100) not null
 );
 
--- статусы юзеров
-create table dict.user_status
-(
+create table dict.user_status (
     user_status_id serial primary key,
     code varchar(50) not null unique,
     name varchar(100) not null
 );
 
-create table dict.report_status (
-    report_status_id serial primary key,
-    code varchar(50) not null unique
-);
 
 -- пользователи
 
@@ -57,11 +51,14 @@ create table main.user (
     last_name varchar(100),
     city_id integer references dict.city(city_id),
     phone varchar(20),
-    email varchar(255) unique not null,
+    email varchar(255) not null,
     password_hash varchar(255),
     role_id integer references dict.user_role(role_id),
     created_at timestamp default now(),
-    user_status_id integer not null references dict.user_status(user_status_id)
+    user_status_id integer not null references dict.user_status(user_status_id),
+
+    constraint user_email_key unique (email),
+    constraint user_phone_key unique (phone)
 );
 
 
@@ -77,7 +74,7 @@ create table main.animal (
     color varchar(100),
     city_id integer references dict.city(city_id),
     description text,
-    status_id integer references dict.animal_status(status_id),
+    animal_status_id integer references dict.animal_status(status_id),
     created_at timestamp default now(),
     status_updated_at timestamp default now()
 );
@@ -103,8 +100,8 @@ create table main.report (
     report_id serial primary key,
     user_id integer references main.user(user_id),
     animal_id integer references main.animal(animal_id),
-    type_id integer references dict.report_type(report_type_id),
-    status_id integer references dict.animal_status(status_id),
+    report_type_id integer references dict.report_type(report_type_id),
+    report_status_id integer references dict.report_status(report_status_id),
     title varchar(255),
     description text,
     location text,
@@ -144,8 +141,7 @@ create table main.help_request (
     user_id integer references main.user(user_id),
     title varchar(255),
     description text,
-    status_id integer not null references dict.help_request_status(help_request_status_id),
+    help_request_status_id integer not null references dict.help_request_status(help_request_status_id),
     created_at timestamp default now(),
     updated_at timestamp
 );
-

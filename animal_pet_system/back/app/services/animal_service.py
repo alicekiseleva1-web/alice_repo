@@ -81,3 +81,37 @@ def create_animal(
 
         ## закрываем соединение
         connection.close()
+
+
+def get_animal(animal_id):
+    connection = get_connection()
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute("select * from api.get_animal(%s)", (animal_id,))
+        return cursor.fetchone()
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+
+def change_animal_status(animal_id, animal_status_id):
+    connection = get_connection()
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "select api.change_animal_status(%s, %s)",
+            (animal_id, animal_status_id)
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()

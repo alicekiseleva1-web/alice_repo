@@ -1,0 +1,13 @@
+регистрация
+
+POST /auth/register
+
+{
+    "first_name": "Ольга",
+    "last_name": "Смирнова",
+    "city_id": 1,
+    "phone": "+79991234567",
+    "email": "olga@test.ru",
+    "password": "123456"
+}
+

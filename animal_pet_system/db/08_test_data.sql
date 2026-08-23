@@ -94,8 +94,8 @@ values
 insert into main.report (
     user_id,
     animal_id,
-    type_id,
-    status_id,
+    report_type_id,
+    report_status_id,
     title,
     description,
     location
@@ -168,7 +168,7 @@ insert into main.help_request (
     user_id,
     title,
     description,
-    status_id
+    help_request_status_id
 )
 values
 (
