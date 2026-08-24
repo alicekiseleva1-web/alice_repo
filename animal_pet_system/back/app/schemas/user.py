@@ -20,6 +20,7 @@ class UserLogin(BaseModel):
     email: str
     password: str = Field(min_length=8, max_length=128)
 
+
 ## для карточки пользователя
 class UserDetail(BaseModel):
 

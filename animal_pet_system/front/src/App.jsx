@@ -34,7 +34,6 @@ function App() {
   const [loginStatus, setLoginStatus] = useState('idle')
   const [loginMessage, setLoginMessage] = useState('')
   const [currentUserId, setCurrentUserId] = useState(null)
-
   async function loadReports(type = selectedType) {
     try {
       setStatus('loading')
