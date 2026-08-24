@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.schemas.user import UserCreate, UserLogin
-from app.services.user_service import register_user, login_user
+from app.services.user_service import login_user, register_user
 
 from app.schemas.user import UserDetail
 from app.services.user_service import get_user
@@ -50,6 +50,7 @@ def login_route(user: UserLogin):
     return {
         "user_id": user_id
     }
+
 
 ## получить пользователя
 ## GET /user

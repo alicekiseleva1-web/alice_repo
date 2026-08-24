@@ -147,3 +147,4 @@ def login_user(email, password):
             cursor.close()
 
         connection.close()
+
