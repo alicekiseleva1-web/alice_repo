@@ -358,6 +358,50 @@
   cursor: pointer;
 }
 
+.city-field {
+  position: relative;
+}
+
+.city-suggestions {
+  grid-column: 1 / -1;
+  margin: -10px 0 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid #c9dacd;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.city-suggestions button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 7px;
+  color: #1d3327;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.city-suggestions button:hover {
+  background: #e6f1e9;
+}
+
+.city-search-status {
+  grid-column: 1 / -1;
+  margin: -8px 0 0;
+  color: #52615a;
+  font-size: 14px;
+}
+
+.city-search-status.success {
+  color: #24623e;
+}
+
+.city-search-status.error {
+  color: #b42318;
+}
+
 @media (max-width: 600px) {
   .auth-modal-overlay {
     padding: 16px;

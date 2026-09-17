@@ -1,7 +1,15 @@
 from fastapi import APIRouter, HTTPException
 
-from app.schemas.user import UserCreate, UserLogin
-from app.services.user_service import login_user, register_user
+from app.schemas.user import (
+    CityResolveRequest,
+    CityResolveResponse,
+    CitySuggestRequest,
+    CitySuggestion,
+    UserCreate,
+    UserLogin,
+)
+from app.services.dadata_service import suggest_cities
+from app.services.user_service import login_user, register_user, resolve_city
 
 from app.schemas.user import UserDetail
 from app.services.user_service import get_user
@@ -49,6 +57,30 @@ def login_route(user: UserLogin):
 
     return {
         "user_id": user_id
+    }
+
+
+@router.post("/cities/suggest", response_model=list[CitySuggestion])
+def city_suggest_route(city_data: CitySuggestRequest):
+
+    try:
+        return suggest_cities(city_data.query)
+
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+
+@router.post("/cities/resolve", response_model=CityResolveResponse)
+def city_resolve_route(city_data: CityResolveRequest):
+
+    city_id = resolve_city(
+        city_data.city_name,
+        city_data.city_fias_id,
+    )
+
+    return {
+        "city_id": city_id,
+        "city_name": city_data.city_name,
     }
 
 

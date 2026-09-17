@@ -1,5 +1,5 @@
 //содержимое главной страницы, интерфейс приложения
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 const API_URL = 'http://127.0.0.1:8000'
@@ -15,7 +15,7 @@ function App() {
   const [registrationData, setRegistrationData] = useState({
     first_name: '',
     last_name: '',
-    city_id: 1,
+    city_id: null,
     phone: '',
     email: '',
   password: '',
@@ -34,6 +34,56 @@ function App() {
   const [loginStatus, setLoginStatus] = useState('idle')
   const [loginMessage, setLoginMessage] = useState('')
   const [currentUserId, setCurrentUserId] = useState(null)
+  const [cityQuery, setCityQuery] = useState('')
+  const [citySuggestions, setCitySuggestions] = useState([])
+  const [citySearchStatus, setCitySearchStatus] = useState('idle')
+  const [citySearchMessage, setCitySearchMessage] = useState('')
+
+  useEffect(() => {
+    const query = cityQuery.trim()
+
+    if (query.length < 3 || registrationData.city_id) {
+      return undefined
+    }
+
+    const controller = new AbortController()
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setCitySearchStatus('loading')
+        setCitySearchMessage('')
+
+        const response = await fetch(`${API_URL}/cities/suggest`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query }),
+          signal: controller.signal,
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.detail || 'Не удалось найти города')
+        }
+
+        setCitySuggestions(data)
+        setCitySearchStatus('success')
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setCitySearchStatus('error')
+          setCitySearchMessage(error.message)
+        }
+      }
+    }, 350)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [cityQuery, registrationData.city_id])
+
   async function loadReports(type = selectedType) {
     try {
       setStatus('loading')
@@ -77,6 +127,12 @@ function App() {
 async function registerUser(event) {
   event.preventDefault()
 
+  if (!registrationData.city_id) {
+    setRegistrationStatus('error')
+    setRegistrationMessage('Выбери город из подсказок')
+    return
+  }
+
   try {
     setRegistrationStatus('loading')
     setRegistrationMessage('')
@@ -103,11 +159,13 @@ async function registerUser(event) {
     setRegistrationData({
       first_name: '',
       last_name: '',
-      city_id: 1,
+      city_id: null,
       phone: '',
       email: '',
       password: '',
     })
+    setCityQuery('')
+    setCitySuggestions([])
   } catch (error) {
     setRegistrationStatus('error')
     setRegistrationMessage(error.message)
@@ -141,6 +199,57 @@ async function loginUser(event) {
   } catch (error) {
     setLoginStatus('error')
     setLoginMessage(error.message)
+  }
+}
+
+async function selectCity(suggestion) {
+  try {
+    setCitySearchStatus('resolving')
+    setCitySearchMessage('')
+
+    const response = await fetch(`${API_URL}/cities/resolve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        city_name: suggestion.city_name,
+        city_fias_id: suggestion.city_fias_id,
+      }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.detail || 'Не удалось выбрать город')
+    }
+
+    setRegistrationData((currentData) => ({
+      ...currentData,
+      city_id: data.city_id,
+    }))
+    setCityQuery(data.city_name)
+    setCitySuggestions([])
+    setCitySearchStatus('selected')
+  } catch (error) {
+    setCitySearchStatus('error')
+    setCitySearchMessage(error.message)
+  }
+}
+
+function changeCityQuery(event) {
+  const query = event.target.value
+
+  setCityQuery(query)
+  setRegistrationData((currentData) => ({
+    ...currentData,
+    city_id: null,
+  }))
+  setCitySearchMessage('')
+
+  if (query.trim().length < 3) {
+    setCitySuggestions([])
+    setCitySearchStatus('idle')
   }
 }
 
@@ -449,24 +558,48 @@ function logoutUser() {
                   />
                 </label>
 
-                <label>
+                <label className="city-field">
                   Город
-                  <select
-                    value={registrationData.city_id}
-                    onChange={(event) =>
-                      setRegistrationData({
-                        ...registrationData,
-                        city_id: Number(event.target.value),
-                      })
-                    }
-                  >
-                    <option value={1}>Москва</option>
-                    <option value={2}>Санкт-Петербург</option>
-                    <option value={3}>Казань</option>
-                    <option value={4}>Екатеринбург</option>
-                    <option value={5}>Новосибирск</option>
-                  </select>
+                  <input
+                    type="text"
+                    value={cityQuery}
+                    onChange={changeCityQuery}
+                    placeholder="Начни вводить город"
+                    autoComplete="off"
+                    required
+                  />
                 </label>
+
+                {citySearchStatus === 'loading' && (
+                  <p className="city-search-status">Ищем города...</p>
+                )}
+
+                {citySuggestions.length > 0 && (
+                  <ul className="city-suggestions">
+                    {citySuggestions.map((suggestion) => (
+                      <li key={suggestion.city_fias_id}>
+                        <button
+                          type="button"
+                          onClick={() => selectCity(suggestion)}
+                        >
+                          {suggestion.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {citySearchStatus === 'selected' && (
+                  <p className="city-search-status success">
+                    Город выбран
+                  </p>
+                )}
+
+                {citySearchMessage && (
+                  <p className="city-search-status error">
+                    {citySearchMessage}
+                  </p>
+                )}
 
                 <label>
                   Телефон

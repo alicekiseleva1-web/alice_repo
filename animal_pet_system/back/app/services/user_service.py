@@ -148,3 +148,40 @@ def login_user(email, password):
 
         connection.close()
 
+
+def resolve_city(city_name, city_fias_id):
+
+    connection = get_connection()
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            select api.resolve_city(%s, %s)
+            """,
+            (
+                city_name,
+                city_fias_id,
+            )
+        )
+
+        city_id = cursor.fetchone()[0]
+        connection.commit()
+
+        return city_id
+
+    except Exception:
+
+        connection.rollback()
+        raise
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        connection.close()
+
