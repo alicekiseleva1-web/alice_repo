@@ -154,3 +154,37 @@ def close_report(report_id):
         if cursor:
             cursor.close()
         connection.close()
+
+
+def user_report_list(user_id):
+    connection = get_connection()
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute("select * from api.get_user_reports(%s)", (user_id,))
+        return cursor.fetchall()
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+
+def change_report_status(report_id, user_id, report_status_id):
+    connection = get_connection()
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "select api.change_report_status(%s, %s, %s)",
+            (report_id, user_id, report_status_id),
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()

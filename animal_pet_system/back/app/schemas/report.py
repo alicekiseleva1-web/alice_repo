@@ -43,3 +43,24 @@ class ReportDetail(BaseModel):
     user_name: str
     phone: str
     city_id: int
+
+
+class ReportStatusUpdate(BaseModel):
+    user_id: int
+    report_status_id: int
+
+
+class UserReportResponse(BaseModel):
+    report_id: int
+    animal_id: int
+    animal_name: str
+    report_type_id: int
+    title: str
+    description: str
+    location: str
+    city_id: int
+    report_status_id: int
+    report_status_code: str
+    created_at: datetime
+    updated_at: datetime | None
+    closed_at: datetime | None

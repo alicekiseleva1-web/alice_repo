@@ -1,6 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, File, Form, UploadFile
 
 from app.schemas.photo import PhotoCreate
+
+from app.services.cloudinary_service import (
+    delete_image,
+    upload_image,
+)
 
 from app.services.photo_service import (
     add_photo,
@@ -8,6 +13,30 @@ from app.services.photo_service import (
 )
 
 router = APIRouter()
+
+
+@router.post("/photo/upload")
+def upload_photo_route(
+    animal_id: int = Form(...),
+    report_id: int | None = Form(None),
+    file: UploadFile = File(...),
+):
+    uploaded_image = upload_image(file)
+
+    try:
+        photo_id = add_photo(
+            animal_id,
+            report_id,
+            uploaded_image["url"],
+        )
+    except Exception:
+        delete_image(uploaded_image["public_id"])
+        raise
+
+    return {
+        "photo_id": photo_id,
+        "url": uploaded_image["url"],
+    }
 
 @router.post("/photo")
 def add_photo_route(photo_data: PhotoCreate):
