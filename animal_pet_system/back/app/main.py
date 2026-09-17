@@ -9,6 +9,7 @@ from app.routers import reports
 from app.routers import messages
 from app.routers import photos
 from app.routers import help_requests
+from app.routers import shelters
 
 app = FastAPI()
 app.add_middleware(
@@ -26,6 +27,7 @@ app.include_router(reports.router)
 app.include_router(messages.router)
 app.include_router(photos.router)
 app.include_router(help_requests.router)
+app.include_router(shelters.router)
 
 ## глобальный обработчик ошибок
 ## отдаёт только понятный текст ошибки

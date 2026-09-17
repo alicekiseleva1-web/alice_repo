@@ -1,3 +1,16 @@
+-- город для тестовых данных
+
+insert into dict.city (
+    name,
+    fias_id
+)
+values
+(
+    'Москва',
+    '0c5b2444-70a0-4932-980c-b4dc0d3f02b5'
+);
+
+
 -- пользователи
 
 insert into main.user (
@@ -43,7 +56,8 @@ insert into main.animal (
     age,
     color,
     city_id,
-    description
+    description,
+    animal_status_id
 )
 values
 (
@@ -54,7 +68,8 @@ values
     3,
     'рыжий',
     1,
-    'добрый кот'
+    'добрый кот',
+    (select status_id from dict.animal_status where code = 'active')
 ),
 (
     1,
@@ -64,13 +79,15 @@ values
     5,
     'черный',
     1,
-    'был в синем ошейнике'
+    'был в синем ошейнике',
+    (select status_id from dict.animal_status where code = 'active')
 );
 
 
 -- приют
 
 insert into main.shelter (
+    manager_user_id,
     name,
     city_id,
     address,
@@ -80,6 +97,7 @@ insert into main.shelter (
 )
 values
 (
+    2,
     'добрые лапы',
     1,
     'ул. центральная, 10',

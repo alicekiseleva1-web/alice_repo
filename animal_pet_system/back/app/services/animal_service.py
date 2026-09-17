@@ -83,6 +83,23 @@ def create_animal(
         connection.close()
 
 
+def get_animals(query=None, limit=24, offset=0):
+    connection = get_connection()
+    cursor = None
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            "select * from api.get_animals(%s, %s, %s)",
+            (query, limit, offset),
+        )
+        return cursor.fetchall()
+    finally:
+        if cursor:
+            cursor.close()
+        connection.close()
+
+
 def get_animal(animal_id):
     connection = get_connection()
     cursor = None

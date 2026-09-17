@@ -73,7 +73,8 @@ def report_list_route(
                 "description": item[7],
                 "location": item[8],
                 "city_id": item[9],
-                "created_at": item[10]
+                "created_at": item[10],
+                "shelter_name": item[11],
             }
         )
 
@@ -112,7 +113,9 @@ def report_route(report_id: int):
         "user_name": item[13],
         "phone": item[14],
 
-        "city_id": item[15]
+        "city_id": item[15],
+        "shelter_name": item[16],
+        "city_name": item[17],
     }
 
 

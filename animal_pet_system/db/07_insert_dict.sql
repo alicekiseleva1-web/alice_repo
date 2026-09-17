@@ -34,7 +34,8 @@ insert into dict.report_type(code)
 values
 ('lost'),
 ('found'),
-('help');
+('help'),
+('adoption');
 
 
 -- статусы пользователей

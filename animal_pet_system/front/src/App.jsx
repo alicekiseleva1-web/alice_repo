@@ -1,6 +1,7 @@
 //содержимое главной страницы, интерфейс приложения
 import { useEffect, useState } from 'react'
 import './App.css'
+import AnimalsPage from './AnimalsPage'
 
 const API_URL = 'http://127.0.0.1:8000'
 const CURRENT_USER_ID_STORAGE_KEY = 'animal_help_current_user_id'
@@ -14,7 +15,14 @@ const genderOptions = [
 const reportTypeOptions = [
   { id: 1, label: 'Пропало животное' },
   { id: 2, label: 'Найдено животное' },
+  { id: 4, label: 'Ищет дом' },
 ]
+
+function getReportTypeLabel(reportTypeId) {
+  if (reportTypeId === 3) return 'Помощь приюту'
+  return reportTypeOptions.find((option) => option.id === reportTypeId)?.label
+    || 'Объявление'
+}
 
 const MAX_PHOTO_FILES = 2
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024
@@ -30,6 +38,7 @@ function getSavedUserId() {
 }
 
 function App() {
+  const [isAnimalsPage, setIsAnimalsPage] = useState(() => window.location.hash === '#animals')
   const [reports, setReports] = useState([])
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -46,7 +55,11 @@ function App() {
     city_id: null,
     phone: '',
     email: '',
-  password: '',
+    password: '',
+    is_shelter: false,
+    shelter_name: '',
+    shelter_address: '',
+    shelter_description: '',
   })
 
   const [registrationStatus, setRegistrationStatus] = useState('idle')
@@ -68,6 +81,14 @@ function App() {
   const [profileStatus, setProfileStatus] = useState('idle')
   const [profileMessage, setProfileMessage] = useState('')
   const [profileActionReportId, setProfileActionReportId] = useState(null)
+  const [shelterData, setShelterData] = useState(null)
+  const [shelterEditData, setShelterEditData] = useState({
+    name: '',
+    address: '',
+    description: '',
+  })
+  const [isShelterEditing, setIsShelterEditing] = useState(false)
+  const [shelterActionStatus, setShelterActionStatus] = useState('idle')
   const [cityQuery, setCityQuery] = useState('')
   const [citySuggestions, setCitySuggestions] = useState([])
   const [citySearchStatus, setCitySearchStatus] = useState('idle')
@@ -95,6 +116,16 @@ function App() {
   const [createReportStatus, setCreateReportStatus] = useState('idle')
   const [createReportMessage, setCreateReportMessage] = useState('')
   const [photoFiles, setPhotoFiles] = useState([])
+
+  useEffect(() => {
+    function handleNavigation() {
+      setIsAnimalsPage(window.location.hash === '#animals')
+      setIsModalOpen(false)
+      setIsPhotoViewerOpen(false)
+    }
+    window.addEventListener('hashchange', handleNavigation)
+    return () => window.removeEventListener('hashchange', handleNavigation)
+  }, [])
 
   useEffect(() => {
     const query = cityQuery.trim()
@@ -355,6 +386,10 @@ async function registerUser(event) {
       phone: '',
       email: '',
       password: '',
+      is_shelter: false,
+      shelter_name: '',
+      shelter_address: '',
+      shelter_description: '',
     })
     setCityQuery('')
     setCitySuggestions([])
@@ -450,6 +485,8 @@ function logoutUser() {
   setIsProfileModalOpen(false)
   setProfileData(null)
   setMyReports([])
+  setShelterData(null)
+  setIsShelterEditing(false)
   setLoginData({
     email: '',
     password: '',
@@ -464,12 +501,14 @@ async function loadProfile() {
   try {
     setProfileStatus('loading')
 
-    const [userResponse, reportsResponse] = await Promise.all([
+    const [userResponse, reportsResponse, shelterResponse] = await Promise.all([
       fetch(API_URL + '/user/' + currentUserId),
       fetch(API_URL + '/user/' + currentUserId + '/reports'),
+      fetch(API_URL + '/user/' + currentUserId + '/shelter'),
     ])
     const userResponseData = await userResponse.json()
     const reportsResponseData = await reportsResponse.json()
+    const shelterResponseData = await shelterResponse.json()
 
     if (!userResponse.ok) {
       throw new Error(
@@ -487,8 +526,31 @@ async function loadProfile() {
       )
     }
 
+    if (!shelterResponse.ok) {
+      throw new Error(
+        shelterResponseData.detail
+          || shelterResponseData.error
+          || 'Не удалось загрузить данные приюта',
+      )
+    }
+
     setProfileData(userResponseData)
     setMyReports(reportsResponseData)
+    setShelterData(shelterResponseData)
+    setShelterEditData(
+      shelterResponseData
+        ? {
+            name: shelterResponseData.name,
+            address: shelterResponseData.address,
+            description: shelterResponseData.description,
+          }
+        : {
+            name: '',
+            address: '',
+            description: '',
+          },
+    )
+    setIsShelterEditing(false)
     setProfileStatus('success')
   } catch (error) {
     setProfileStatus('error')
@@ -532,6 +594,65 @@ async function changeMyReportStatus(reportId, reportStatusId) {
     setProfileMessage(error.message)
   } finally {
     setProfileActionReportId(null)
+  }
+}
+
+function startShelterEditing() {
+  if (!shelterData) {
+    return
+  }
+
+  setShelterEditData({
+    name: shelterData.name,
+    address: shelterData.address,
+    description: shelterData.description,
+  })
+  setProfileMessage('')
+  setIsShelterEditing(true)
+}
+
+function cancelShelterEditing() {
+  setIsShelterEditing(false)
+  setProfileMessage('')
+}
+
+async function saveShelter(event) {
+  event.preventDefault()
+
+  try {
+    setShelterActionStatus('loading')
+    setProfileMessage('')
+
+    const response = await fetch(
+      API_URL + '/user/' + currentUserId + '/shelter',
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(shelterEditData),
+      },
+    )
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(
+        data.detail || data.error || 'Не удалось сохранить данные приюта',
+      )
+    }
+
+    setShelterData(data)
+    setShelterEditData({
+      name: data.name,
+      address: data.address,
+      description: data.description,
+    })
+    setIsShelterEditing(false)
+    setProfileMessage('Данные приюта сохранены')
+  } catch (error) {
+    setProfileMessage(error.message)
+  } finally {
+    setShelterActionStatus('idle')
   }
 }
 
@@ -794,7 +915,7 @@ async function createAnimalAndReport(event) {
 
         <nav className="navigation">
           <a href="#reports">Объявления</a>
-          <a href="#animals">Животные</a>
+          <a href="#animals" aria-current={isAnimalsPage ? 'page' : undefined}>Животные</a>
           <a href="#help">Помощь приютам</a>
         </nav>
         {currentUserId ? (
@@ -829,6 +950,8 @@ async function createAnimalAndReport(event) {
       </header>
 
       <main>
+        {isAnimalsPage ? <AnimalsPage apiUrl={API_URL} /> : (
+        <>
         <section className="hero-section">
           <p className="eyebrow">Сервис поиска и помощи животным</p>
           <h1>Помогаем животным найти дорогу домой</h1>
@@ -896,6 +1019,16 @@ async function createAnimalAndReport(event) {
               >
                 Найдены
               </button>
+              <button
+                type="button"
+                className={selectedType === 4 ? 'active-filter' : ''}
+                onClick={() => {
+                  setSelectedType(4)
+                  loadReports(4)
+                }}
+              >
+                Ищут дом
+              </button>
             </div>
 
             <div className="reports-grid">
@@ -932,14 +1065,17 @@ async function createAnimalAndReport(event) {
                     )}
                   </div>
                   <p className="report-type">
-                    {report.report_type_id === 1
-                      ? 'Пропало животное'
-                      : 'Найдено животное'}
+                    {getReportTypeLabel(report.report_type_id)}
                   </p>
                   <h3>{report.title}</h3>
                   <p>{report.description}</p>
                   <p>{report.location}</p>
                   <p>Животное: {report.animal_name}</p>
+                  {report.shelter_name && (
+                    <p className="report-shelter-note">
+                      Находится в приюте: {report.shelter_name}
+                    </p>
+                  )}
                 </article>
               ))}
             </div>
@@ -974,13 +1110,14 @@ async function createAnimalAndReport(event) {
         <div>
           <h2>{selectedReport.report_title}</h2>
           <p>{selectedReport.report_description}</p>
-          <p>Город: {selectedReport.city_id}</p>
 
-          <h3>Животное</h3>
-          <p>Кличка: {selectedReport.animal_name}</p>
-          <p>Порода: {selectedReport.breed}</p>
-          <p>Возраст: {selectedReport.age}</p>
-          <p>Окрас: {selectedReport.color}</p>
+          <div className="report-animal-details">
+            <p>Город: {selectedReport.city_name || 'Не указан'}</p>
+            <p>Кличка: {selectedReport.animal_name}</p>
+            <p>Порода: {selectedReport.breed}</p>
+            <p>Возраст: {selectedReport.age}</p>
+            <p>Окрас: {selectedReport.color}</p>
+          </div>
 
           <h3>Фотографии</h3>
           {selectedReportPhotos.length > 0 ? (
@@ -1006,6 +1143,11 @@ async function createAnimalAndReport(event) {
           <h3>Автор объявления</h3>
           <p>{selectedReport.user_name}</p>
           <p>{selectedReport.phone}</p>
+          {selectedReport.shelter_name && (
+            <p className="report-shelter-note">
+              Находится в приюте: {selectedReport.shelter_name}
+            </p>
+          )}
         </div>
       )}
     </section>
@@ -1066,6 +1208,8 @@ async function createAnimalAndReport(event) {
   </div>
 )}
       </section>
+        </>
+        )}
     </main>
 
       {isProfileModalOpen && (
@@ -1107,6 +1251,97 @@ async function createAnimalAndReport(event) {
                   <p>Email: {profileData.email}</p>
                   <p>Карточек животных: {profileData.animals_count}</p>
                 </section>
+
+                {shelterData && (
+                  <section className="shelter-profile-section">
+                    <p className="profile-eyebrow">Мой приют</p>
+
+                    {isShelterEditing ? (
+                      <form
+                        className="shelter-edit-form"
+                        onSubmit={saveShelter}
+                      >
+                        <label>
+                          Название
+                          <input
+                            type="text"
+                            value={shelterEditData.name}
+                            onChange={(event) =>
+                              setShelterEditData({
+                                ...shelterEditData,
+                                name: event.target.value,
+                              })
+                            }
+                            required
+                          />
+                        </label>
+
+                        <label>
+                          Адрес
+                          <input
+                            type="text"
+                            value={shelterEditData.address}
+                            onChange={(event) =>
+                              setShelterEditData({
+                                ...shelterEditData,
+                                address: event.target.value,
+                              })
+                            }
+                            required
+                          />
+                        </label>
+
+                        <label>
+                          Описание
+                          <textarea
+                            value={shelterEditData.description}
+                            onChange={(event) =>
+                              setShelterEditData({
+                                ...shelterEditData,
+                                description: event.target.value,
+                              })
+                            }
+                            rows="5"
+                            required
+                          />
+                        </label>
+
+                        <div className="shelter-edit-actions">
+                          <button
+                            className="report-status-button"
+                            type="submit"
+                            disabled={shelterActionStatus === 'loading'}
+                          >
+                            {shelterActionStatus === 'loading'
+                              ? 'Сохраняем...'
+                              : 'Сохранить'}
+                          </button>
+                          <button
+                            className="shelter-cancel-button"
+                            type="button"
+                            onClick={cancelShelterEditing}
+                            disabled={shelterActionStatus === 'loading'}
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <div className="shelter-profile-data">
+                        <h3>{shelterData.name}</h3>
+                        <p>{shelterData.address}</p>
+                        <p>{shelterData.description}</p>
+                        <button
+                          className="report-status-button"
+                          type="button"
+                          onClick={startShelterEditing}
+                        >
+                          Редактировать данные
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 <section className="my-reports-section">
                   <h3>Мои объявления</h3>
@@ -1538,6 +1773,25 @@ async function createAnimalAndReport(event) {
               <form className="registration-form" onSubmit={registerUser}>
                 <h2>Регистрация</h2>
 
+                <label className="shelter-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={registrationData.is_shelter}
+                    onChange={(event) =>
+                      setRegistrationData({
+                        ...registrationData,
+                        is_shelter: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>
+                    <strong>Я представляю приют</strong>
+                    <small>
+                      Создадим аккаунт сотрудника и карточку приюта.
+                    </small>
+                  </span>
+                </label>
+
                 <label>
                   Имя
                   <input
@@ -1657,6 +1911,60 @@ async function createAnimalAndReport(event) {
                     required
                   />
                 </label>
+
+                {registrationData.is_shelter && (
+                  <>
+                    <p className="shelter-fields-title">Данные приюта</p>
+
+                    <label>
+                      Название приюта
+                      <input
+                        type="text"
+                        value={registrationData.shelter_name}
+                        onChange={(event) =>
+                          setRegistrationData({
+                            ...registrationData,
+                            shelter_name: event.target.value,
+                          })
+                        }
+                        placeholder="Например, Добрые лапы"
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      Адрес приюта
+                      <input
+                        type="text"
+                        value={registrationData.shelter_address}
+                        onChange={(event) =>
+                          setRegistrationData({
+                            ...registrationData,
+                            shelter_address: event.target.value,
+                          })
+                        }
+                        placeholder="Улица, дом"
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      Описание приюта
+                      <textarea
+                        value={registrationData.shelter_description}
+                        onChange={(event) =>
+                          setRegistrationData({
+                            ...registrationData,
+                            shelter_description: event.target.value,
+                          })
+                        }
+                        placeholder="Кому и чем помогает приют"
+                        rows="4"
+                        required
+                      />
+                    </label>
+                  </>
+                )}
 
                 <button
                   type="submit"

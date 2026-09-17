@@ -10,7 +10,11 @@ def register_user(
     city_id,
     phone,
     email,
-    password
+    password,
+    is_shelter,
+    shelter_name,
+    shelter_address,
+    shelter_description,
 ):
 
     ## подключение к пг
@@ -33,6 +37,10 @@ def register_user(
                 %s,
                 %s,
                 %s,
+                %s,
+                %s,
+                %s,
+                %s,
                 %s
             )
             """,
@@ -42,7 +50,11 @@ def register_user(
                 city_id,
                 phone,
                 email,
-                hash_password(password)
+                hash_password(password),
+                is_shelter,
+                shelter_name,
+                shelter_address,
+                shelter_description,
             )
         )
 

@@ -21,6 +21,22 @@ class AnimalStatusUpdate(BaseModel):
     animal_status_id: int
 
 
+class AnimalCatalogItem(BaseModel):
+    animal_id: int
+    animal_name: str | None
+    breed: str | None
+    gender_id: int | None
+    age: int | None
+    color: str | None
+    description: str | None
+    city_id: int | None
+    city_name: str | None
+    owner_name: str | None
+    owner_phone: str | None
+    photo_url: str | None
+    shelter_name: str | None
+
+
 class AnimalDetail(BaseModel):
     animal_id: int
     animal_name: str

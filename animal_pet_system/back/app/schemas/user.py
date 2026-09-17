@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 ## модель регистрации пользователя
@@ -13,6 +13,28 @@ class UserCreate(BaseModel):
     phone: str
     email: str
     password: str = Field(min_length=8, max_length=128)
+    is_shelter: bool = False
+    shelter_name: str | None = Field(default=None, max_length=200)
+    shelter_address: str | None = Field(default=None, max_length=500)
+    shelter_description: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_shelter_fields(self):
+        if not self.is_shelter:
+            return self
+
+        shelter_fields = (
+            self.shelter_name,
+            self.shelter_address,
+            self.shelter_description,
+        )
+
+        if not all(value and value.strip() for value in shelter_fields):
+            raise ValueError(
+                "для регистрации приюта заполните название, адрес и описание"
+            )
+
+        return self
 
 
 class UserLogin(BaseModel):

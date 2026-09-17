@@ -1,46 +1,89 @@
 -- функции проекта
 -- регистрация пользователя
+-- работа с городами
 -- создание животных
 -- работа со статусами животных
 -- работа с объявлениями
 -- сообщения
 -- фотографии
 -- карточки пользователей и животных
+-- карточка приюта сотрудника
 -- заявки помощи приютам
 
 
 -- регистрация пользователя
 
 create or replace function main.register_user(
-    first_name varchar,
-    last_name varchar,
-    city_id integer,
-    phone varchar,
-    email varchar,
-    password_hash varchar
+    first_name_value varchar,
+    last_name_value varchar,
+    city_id_value integer,
+    phone_value varchar,
+    email_value varchar,
+    password_hash_value varchar,
+    is_shelter_value boolean,
+    shelter_name_value varchar,
+    shelter_address_value text,
+    shelter_description_value text
 )
 returns integer
 language plpgsql
 as
 $$
 declare
-    user_id integer;
+    user_id_result integer;
+    role_id_value integer;
+    user_status_id_value integer;
 begin
 
     if exists (
         select 1
         from main.user u
-        where u.email = register_user.email
+        where u.email = email_value
     ) then
-        raise exception 'пользователь с таким email уже существует.';
+        raise exception 'пользователь с таким email уже существует';
     end if;
 
     if exists (
         select 1
         from main.user u
-        where u.phone = register_user.phone
+        where u.phone = phone_value
     ) then
-        raise exception 'пользователь с таким телефоном уже существует.';
+        raise exception 'пользователь с таким телефоном уже существует';
+    end if;
+
+    if is_shelter_value then
+        if nullif(trim(shelter_name_value), '') is null then
+            raise exception 'укажите название приюта';
+        end if;
+
+        if nullif(trim(shelter_address_value), '') is null then
+            raise exception 'укажите адрес приюта';
+        end if;
+
+        if nullif(trim(shelter_description_value), '') is null then
+            raise exception 'добавьте описание приюта';
+        end if;
+    end if;
+
+    select ur.role_id
+    into role_id_value
+    from dict.user_role ur
+    where ur.code = case
+        when is_shelter_value then 'shelter_manager'
+        else 'friend'
+    end;
+
+    if role_id_value is null then
+        raise exception 'не найдено значение роли пользователя';
+    end if;
+
+    select us.user_status_id
+    into user_status_id_value
+    from dict.user_status us
+    where us.code = 'active';
+
+    if user_status_id_value is null then
+        raise exception 'не найден активный статус пользователя';
     end if;
 
     insert into main.user
@@ -56,29 +99,42 @@ begin
     )
     values
     (
-        first_name,
-        last_name,
-        city_id,
-        phone,
-        email,
-        password_hash,
-
-        (
-            select role_id
-            from dict.user_role
-            where code = 'friend'
-        ),
-
-        (
-            select user_status_id
-            from dict.user_status
-            where code = 'active'
-        )
+        first_name_value,
+        last_name_value,
+        city_id_value,
+        phone_value,
+        email_value,
+        password_hash_value,
+        role_id_value,
+        user_status_id_value
     )
-    returning main.user.user_id
-    into user_id;
+    returning user_id
+    into user_id_result;
 
-    return user_id;
+    if is_shelter_value then
+        insert into main.shelter
+        (
+            manager_user_id,
+            name,
+            city_id,
+            address,
+            phone,
+            email,
+            description
+        )
+        values
+        (
+            user_id_result,
+            trim(shelter_name_value),
+            city_id_value,
+            trim(shelter_address_value),
+            phone_value,
+            email_value,
+            trim(shelter_description_value)
+        );
+    end if;
+
+    return user_id_result;
 
 end;
 $$;
@@ -87,12 +143,16 @@ $$;
 -- api регистрация пользователя
 
 create or replace function api.register_user(
-    first_name varchar,
-    last_name varchar,
-    city_id integer,
-    phone varchar,
-    email varchar,
-    password_hash varchar
+    first_name_value varchar,
+    last_name_value varchar,
+    city_id_value integer,
+    phone_value varchar,
+    email_value varchar,
+    password_hash_value varchar,
+    is_shelter_value boolean,
+    shelter_name_value varchar,
+    shelter_address_value text,
+    shelter_description_value text
 )
 returns integer
 language plpgsql
@@ -101,12 +161,117 @@ $$
 begin
 
     return main.register_user(
-        first_name,
-        last_name,
-        city_id,
-        phone,
-        email,
-        password_hash
+        first_name_value,
+        last_name_value,
+        city_id_value,
+        phone_value,
+        email_value,
+        password_hash_value,
+        is_shelter_value,
+        shelter_name_value,
+        shelter_address_value,
+        shelter_description_value
+    );
+
+end;
+$$;
+
+
+-- определение города по FIAS ID из DaData
+
+create or replace function main.resolve_city(
+    city_name_value varchar,
+    city_fias_id_value varchar
+)
+returns integer
+language plpgsql
+as
+$$
+declare
+    resolved_city_id integer;
+    legacy_city_count integer;
+begin
+
+    if city_name_value is null or btrim(city_name_value) = '' then
+        raise exception 'название города не передано';
+    end if;
+
+    if city_fias_id_value is null or btrim(city_fias_id_value) = '' then
+        raise exception 'FIAS ID города не передан';
+    end if;
+
+    select c.city_id
+    into resolved_city_id
+    from dict.city c
+    where c.fias_id = city_fias_id_value;
+
+    if found then
+        update dict.city
+        set name = city_name_value
+        where city_id = resolved_city_id;
+
+        return resolved_city_id;
+    end if;
+
+    select
+        count(*),
+        min(c.city_id)
+    into
+        legacy_city_count,
+        resolved_city_id
+    from dict.city c
+    where c.fias_id is null
+      and lower(btrim(c.name)) = lower(btrim(city_name_value));
+
+    if legacy_city_count = 1 then
+        update dict.city
+        set
+            name = city_name_value,
+            fias_id = city_fias_id_value
+        where city_id = resolved_city_id;
+
+        return resolved_city_id;
+    end if;
+
+    if legacy_city_count > 1 then
+        raise exception
+            'в справочнике найдено несколько городов с названием %, требуется очистка дублей',
+            city_name_value;
+    end if;
+
+    insert into dict.city (
+        name,
+        fias_id
+    )
+    values (
+        city_name_value,
+        city_fias_id_value
+    )
+    on conflict (fias_id)
+    do update
+    set name = excluded.name
+    returning city_id
+    into resolved_city_id;
+
+    return resolved_city_id;
+
+end;
+$$;
+
+
+create or replace function api.resolve_city(
+    city_name_value varchar,
+    city_fias_id_value varchar
+)
+returns integer
+language plpgsql
+as
+$$
+begin
+
+    return main.resolve_city(
+        city_name_value,
+        city_fias_id_value
     );
 
 end;
@@ -479,7 +644,8 @@ returns table
     description text,
     location text,
     city_id integer,
-    created_at timestamp
+    created_at timestamp,
+    shelter_name varchar
 )
 language plpgsql
 as
@@ -511,7 +677,8 @@ begin
         r.description,
         r.location,
         a.city_id,
-        r.created_at
+        r.created_at,
+        case when rt.code = 'adoption' then s.name else null end
 
     from main.report r
 
@@ -526,6 +693,9 @@ begin
 
     join dict.report_status rs
         on rs.report_status_id = r.report_status_id
+
+    left join main.shelter s
+        on s.manager_user_id = r.user_id
 
     where rs.code = 'open'
 
@@ -568,7 +738,8 @@ returns table
     description text,
     location text,
     city_id integer,
-    created_at timestamp
+    created_at timestamp,
+    shelter_name varchar
 )
 language plpgsql
 as
@@ -583,6 +754,191 @@ begin
         city_id_value,
         limit_value,
         offset_value
+    );
+
+end;
+$$;
+
+
+-- объявления пользователя для профиля
+
+create or replace function main.get_user_reports(
+    user_id_value integer
+)
+returns table
+(
+    report_id integer,
+    animal_id integer,
+    animal_name varchar,
+    report_type_id integer,
+    title varchar,
+    description text,
+    location text,
+    city_id integer,
+    report_status_id integer,
+    report_status_code varchar,
+    created_at timestamp,
+    updated_at timestamp,
+    closed_at timestamp
+)
+language plpgsql
+as
+$$
+begin
+
+    if not exists (
+        select 1
+        from main.user u
+        where u.user_id = user_id_value
+    ) then
+        raise exception 'пользователь с id % не найден', user_id_value;
+    end if;
+
+    return query
+
+    select
+        r.report_id,
+        a.animal_id,
+        a.name,
+        r.report_type_id,
+        r.title,
+        r.description,
+        r.location,
+        a.city_id,
+        rs.report_status_id,
+        rs.code,
+        r.created_at,
+        r.updated_at,
+        r.closed_at
+    from main.report r
+
+    join main.animal a
+        on a.animal_id = r.animal_id
+
+    join dict.report_status rs
+        on rs.report_status_id = r.report_status_id
+
+    where r.user_id = user_id_value
+
+    order by r.created_at desc;
+
+end;
+$$;
+
+
+create or replace function api.get_user_reports(
+    user_id_value integer
+)
+returns table
+(
+    report_id integer,
+    animal_id integer,
+    animal_name varchar,
+    report_type_id integer,
+    title varchar,
+    description text,
+    location text,
+    city_id integer,
+    report_status_id integer,
+    report_status_code varchar,
+    created_at timestamp,
+    updated_at timestamp,
+    closed_at timestamp
+)
+language plpgsql
+as
+$$
+begin
+
+    return query
+
+    select *
+    from main.get_user_reports(user_id_value);
+
+end;
+$$;
+
+
+-- изменение статуса объявления автором
+
+create or replace function main.change_report_status(
+    report_id_value integer,
+    user_id_value integer,
+    report_status_id_value integer
+)
+returns void
+language plpgsql
+as
+$$
+declare
+    report_owner_id integer;
+    current_status_id integer;
+    status_code_value varchar;
+begin
+
+    select
+        r.user_id,
+        r.report_status_id
+    into
+        report_owner_id,
+        current_status_id
+    from main.report r
+    where r.report_id = report_id_value;
+
+    if not found then
+        raise exception 'объявление с id % не найдено', report_id_value;
+    end if;
+
+    if report_owner_id <> user_id_value then
+        raise exception 'изменить статус объявления может только его автор';
+    end if;
+
+    select rs.code
+    into status_code_value
+    from dict.report_status rs
+    where rs.report_status_id = report_status_id_value;
+
+    if status_code_value is null then
+        raise exception 'статус объявления с id % не найден', report_status_id_value;
+    end if;
+
+    if status_code_value not in ('open', 'closed') then
+        raise exception 'недопустимый статус объявления';
+    end if;
+
+    if current_status_id = report_status_id_value then
+        return;
+    end if;
+
+    update main.report r
+    set
+        report_status_id = report_status_id_value,
+        updated_at = now(),
+        closed_at = case
+            when status_code_value = 'closed' then now()
+            else null
+        end
+    where r.report_id = report_id_value;
+
+end;
+$$;
+
+
+create or replace function api.change_report_status(
+    report_id_value integer,
+    user_id_value integer,
+    report_status_id_value integer
+)
+returns void
+language plpgsql
+as
+$$
+begin
+
+    perform main.change_report_status(
+        report_id_value,
+        user_id_value,
+        report_status_id_value
     );
 
 end;
@@ -614,7 +970,9 @@ returns table
     user_name varchar,
     phone varchar,
 
-    city_id integer
+    city_id integer,
+    shelter_name varchar,
+    city_name varchar
 )
 language plpgsql
 as
@@ -642,7 +1000,9 @@ begin
         u.first_name,
         u.phone,
 
-        a.city_id
+        a.city_id,
+        case when rt.code = 'adoption' then s.name else null end,
+        c.name
 
     from main.report r
 
@@ -657,6 +1017,12 @@ begin
 
     join dict.report_status rs
         on rs.report_status_id = r.report_status_id
+
+    left join main.shelter s
+        on s.manager_user_id = r.user_id
+
+    left join dict.city c
+        on c.city_id = a.city_id
 
     left join dict.animal_status ast
         on ast.status_id = a.animal_status_id
@@ -692,7 +1058,9 @@ returns table
     user_name varchar,
     phone varchar,
 
-    city_id integer
+    city_id integer,
+    shelter_name varchar,
+    city_name varchar
 )
 language plpgsql
 as
@@ -1021,6 +1389,84 @@ end;
 $$;
 
 
+-- каталог животных
+
+create or replace function main.get_animals(
+    query_value varchar default null,
+    limit_value integer default 24,
+    offset_value integer default 0
+)
+returns table (
+    animal_id integer,
+    animal_name varchar,
+    breed varchar,
+    gender_id integer,
+    age integer,
+    color varchar,
+    description text,
+    city_id integer,
+    city_name varchar,
+    owner_name varchar,
+    owner_phone varchar,
+    photo_url text,
+    shelter_name varchar
+)
+language sql
+stable
+as $$
+    select
+        a.animal_id, a.name, a.breed, a.gender_id, a.age,
+        a.color, a.description, a.city_id, c.name,
+        u.first_name, u.phone,
+        (
+            select p.url
+            from main.photo p
+            where p.animal_id = a.animal_id
+            order by p.created_at desc nulls last, p.photo_id desc
+            limit 1
+        ),
+        s.name
+    from main.animal a
+    left join dict.city c on c.city_id = a.city_id
+    left join main.user u on u.user_id = a.owner_id
+    left join main.shelter s on s.manager_user_id = a.owner_id
+    where nullif(btrim(query_value), '') is null
+       or position(lower(btrim(query_value)) in lower(coalesce(a.name, ''))) > 0
+       or position(lower(btrim(query_value)) in lower(coalesce(a.breed, ''))) > 0
+       or position(lower(btrim(query_value)) in lower(coalesce(c.name, ''))) > 0
+    order by a.created_at desc nulls last, a.animal_id desc
+    limit least(greatest(coalesce(limit_value, 24), 1), 100)
+    offset greatest(coalesce(offset_value, 0), 0);
+$$;
+
+
+create or replace function api.get_animals(
+    query_value varchar default null,
+    limit_value integer default 24,
+    offset_value integer default 0
+)
+returns table (
+    animal_id integer,
+    animal_name varchar,
+    breed varchar,
+    gender_id integer,
+    age integer,
+    color varchar,
+    description text,
+    city_id integer,
+    city_name varchar,
+    owner_name varchar,
+    owner_phone varchar,
+    photo_url text,
+    shelter_name varchar
+)
+language sql
+stable
+as $$
+    select * from main.get_animals(query_value, limit_value, offset_value);
+$$;
+
+
 -- карточка животного
 
 create or replace function main.get_animal(
@@ -1242,6 +1688,139 @@ begin
     select *
     from main.get_user(
         user_id_value
+    );
+
+end;
+$$;
+
+
+-- карточка приюта сотрудника
+
+create or replace function main.get_user_shelter(
+    user_id_value integer
+)
+returns table
+(
+    shelter_id integer,
+    name varchar,
+    address text,
+    description text,
+    created_at timestamp
+)
+language plpgsql
+as
+$$
+begin
+
+    return query
+
+    select
+        s.shelter_id,
+        s.name,
+        s.address,
+        s.description,
+        s.created_at
+    from main.shelter s
+    where s.manager_user_id = user_id_value;
+
+end;
+$$;
+
+
+create or replace function api.get_user_shelter(
+    user_id_value integer
+)
+returns table
+(
+    shelter_id integer,
+    name varchar,
+    address text,
+    description text,
+    created_at timestamp
+)
+language plpgsql
+as
+$$
+begin
+
+    return query
+
+    select *
+    from main.get_user_shelter(user_id_value);
+
+end;
+$$;
+
+
+-- редактирование карточки может выполнить только привязанный сотрудник
+
+create or replace function main.update_user_shelter(
+    user_id_value integer,
+    name_value varchar,
+    address_value text,
+    description_value text
+)
+returns integer
+language plpgsql
+as
+$$
+declare
+    shelter_id_result integer;
+begin
+
+    if not exists (
+        select 1
+        from main.user u
+        where u.user_id = user_id_value
+    ) then
+        raise exception 'пользователь с id % не найден', user_id_value;
+    end if;
+
+    if coalesce(btrim(name_value), '') = ''
+        or coalesce(btrim(address_value), '') = ''
+        or coalesce(btrim(description_value), '') = '' then
+        raise exception 'название, адрес и описание приюта обязательны';
+    end if;
+
+    select s.shelter_id
+    into shelter_id_result
+    from main.shelter s
+    where s.manager_user_id = user_id_value;
+
+    if not found then
+        raise exception 'у пользователя нет привязанного приюта';
+    end if;
+
+    update main.shelter s
+    set
+        name = btrim(name_value),
+        address = btrim(address_value),
+        description = btrim(description_value)
+    where s.shelter_id = shelter_id_result;
+
+    return shelter_id_result;
+
+end;
+$$;
+
+
+create or replace function api.update_user_shelter(
+    user_id_value integer,
+    name_value varchar,
+    address_value text,
+    description_value text
+)
+returns integer
+language plpgsql
+as
+$$
+begin
+
+    return main.update_user_shelter(
+        user_id_value,
+        name_value,
+        address_value,
+        description_value
     );
 
 end;

@@ -31,7 +31,11 @@ def create_user(user: UserCreate):
         user.city_id,
         user.phone,
         user.email,
-        user.password
+        user.password,
+        user.is_shelter,
+        user.shelter_name,
+        user.shelter_address,
+        user.shelter_description,
     )
 
 

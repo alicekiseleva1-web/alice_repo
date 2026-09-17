@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
-from app.schemas.animal import AnimalCreate, AnimalDetail, AnimalStatusUpdate
+from app.schemas.animal import AnimalCatalogItem, AnimalCreate, AnimalDetail, AnimalStatusUpdate
 from app.services.animal_service import (
     change_animal_status,
     create_animal,
     get_animal,
+    get_animals,
 )
 
 
@@ -35,6 +36,32 @@ def create_animal_route(animal: AnimalCreate):
     return {
         "animal_id": animal_id
     }
+
+
+@router.get("/animals", response_model=list[AnimalCatalogItem])
+def animal_list_route(
+    query: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=24, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+):
+    return [
+        {
+            "animal_id": item[0],
+            "animal_name": item[1],
+            "breed": item[2],
+            "gender_id": item[3],
+            "age": item[4],
+            "color": item[5],
+            "description": item[6],
+            "city_id": item[7],
+            "city_name": item[8],
+            "owner_name": item[9],
+            "owner_phone": item[10],
+            "photo_url": item[11],
+            "shelter_name": item[12],
+        }
+        for item in get_animals(query, limit, offset)
+    ]
 
 
 @router.get("/animals/{animal_id}", response_model=AnimalDetail)

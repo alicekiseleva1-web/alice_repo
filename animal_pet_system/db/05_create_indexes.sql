@@ -19,6 +19,9 @@ create index idx_report_user
 create index idx_message_report
     on main.message(report_id);
 
+create index idx_photo_animal
+    on main.photo(animal_id);
+
 create index idx_help_request_shelter
     on main.help_request(shelter_id);
 

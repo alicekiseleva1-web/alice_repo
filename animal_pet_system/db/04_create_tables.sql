@@ -2,7 +2,10 @@
 
 create table dict.city (
     city_id serial primary key,
-    name varchar(100) not null
+    name varchar(100) not null,
+    fias_id varchar(36),
+
+    constraint city_fias_id_key unique (fias_id)
 );
 
 create table dict.animal_status (
@@ -84,13 +87,20 @@ create table main.animal (
 
 create table main.shelter (
     shelter_id serial primary key,
+    manager_user_id integer,
     name varchar(200) not null,
     city_id integer references dict.city(city_id),
     address text,
     phone varchar(20),
     email varchar(255),
     description text,
-    created_at timestamp default now()
+    created_at timestamp default now(),
+
+    constraint shelter_manager_user_id_fkey
+        foreign key (manager_user_id)
+        references main.user(user_id),
+    constraint shelter_manager_user_id_key
+        unique (manager_user_id)
 );
 
 

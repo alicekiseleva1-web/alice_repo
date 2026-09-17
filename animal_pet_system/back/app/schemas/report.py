@@ -24,6 +24,7 @@ class ReportResponse(BaseModel):
     location: str
     city_id: int
     created_at: datetime
+    shelter_name: str | None
 
 
 class ReportDetail(BaseModel):
@@ -43,6 +44,8 @@ class ReportDetail(BaseModel):
     user_name: str
     phone: str
     city_id: int
+    shelter_name: str | None
+    city_name: str | None
 
 
 class ReportStatusUpdate(BaseModel):
