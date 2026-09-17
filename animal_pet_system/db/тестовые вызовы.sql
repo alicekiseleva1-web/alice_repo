@@ -1,144 +1,83 @@
-select api.register_user(
-    'алиса',
-    'киселёва',
-    1,
-    '+79997776655',
-    'alice.kiss@example.com',
-    '$2b$12$Q8M1Wv7iA6zK4eN8uJ5F0eGmK3pL9xR2tV7yH1sC4nD8aB6qP2zXW'
+-- Ручная проверка SQL-функций в DBeaver.
+-- Скрипт выполняется после создания таблиц, функций и тестовых данных.
+-- Запросы из раздела «Проверки без изменения данных» безопасны для повторного запуска.
+-- В разделе «Проверки с изменением данных» транзакция всегда завершается ROLLBACK.
+
+
+-- Проверки без изменения данных
+
+-- Справочники
+select * from dict.city order by city_id;
+select * from dict.gender order by gender_id;
+select * from dict.animal_status order by status_id;
+select * from dict.report_type order by report_type_id;
+select * from dict.report_status order by report_status_id;
+select * from dict.help_request_status order by help_request_status_id;
+
+
+-- Карточки пользователя и животного
+select * from api.get_user(1);
+select * from api.get_animal(1);
+
+
+-- Список и карточка объявления
+select * from api.get_reports();
+select * from api.get_reports(
+    report_type_id_value => 1,
+    city_id_value => 1,
+    limit_value => 20,
+    offset_value => 0
+);
+select * from api.get_report(1);
+
+
+-- Сообщения, фотографии и заявки помощи
+select * from api.get_messages(1);
+select * from api.get_photos(1);
+select * from api.get_help_requests();
+select * from api.get_help_requests(
+    shelter_id_value => 1,
+    help_request_status_id_value => 1
 );
 
-select api.create_animal(
-    3, --ид юзера
-    'чмоня',
-    'двортерьер',
-    2,
-    2,
-    'серая',
-    1,
-    'домашняя кошка'
-);
 
+-- Проверки с изменением данных
+-- При необходимости замени идентификаторы на существующие значения из своей БД.
+
+begin;
+
+-- Изменение статуса животного
 select api.change_animal_status(
-    1, --ид животного
-    2 -- id статуса lost из dict.animal_status
-); 
-
-
-select api.create_report(
-    3,
-    1,
-    1, -- id типа lost из dict.report_type
-    'пропал кот',
-    'убежал вечером возле парка',
-    'парк победы'
-);
---тесты объявлений
---все открытые
-select *
-from api.get_reports();
-
---только потерянные
-select *
-from api.get_reports(
-    1 -- id типа lost из dict.report_type
+    animal_id_value => 1,
+    animal_status_id_value => 2
 );
 
---по городу + лимит
-
-select *
-from api.get_reports(
-    1, -- id типа lost из dict.report_type
-    1,
-    10,
-    0
-);
-
---существующее объявление
-
-select *
-from api.get_reports();
-
---смотрим его
-
-select *
-from api.get_report(1);
-
---добавить сообщение
+-- Добавление сообщения в открытое объявление
 select api.create_message(
-    1,
-    4,
-    'видел похожего кота возле парка'
+    report_id_value => 1,
+    user_id_value => 1,
+    message_text => 'Тестовое сообщение'
 );
 
---добавить фотку
+-- Добавление фотографии, связанной с животным и его объявлением
 select api.add_photo(
-    1,
-    1,
-    'https://example.com/barcik.jpg'
+    animal_id_value => 1,
+    report_id_value => 1,
+    photo_url => 'https://example.com/test-photo.jpg'
 );
 
-select *
-from api.get_photos(1);
+-- Создание заявки помощи
+select api.create_help_request(
+    shelter_id_value => 1,
+    user_id_value => 1,
+    title_value => 'Тестовая заявка',
+    description_value => 'Проверка SQL-функции'
+);
 
-select *
-from api.get_user(3);
+rollback;
 
-активировать окружение (из папки back)
-source venv/Scripts/activate
 
-запустить
-uvicorn app.main:app --reload
-
-разнесла логику:
-routers - отвечает за HTTP/API уровень
-schemas — модели входных и выходных данных (структура данных)
-service - доступ к бд
-
-тесты апи:
-POST /register
-{
-  "first_name": "Анна",
-  "last_name": "Иванова",
-  "city_id": 1,
-  "phone": "+79990000001",
-  "email": "anna_test@example.com",
-  "password_hash": "test_hash_123"
-}
-
-POST /animals
-
-{
-  "owner_id": 5,
-  "name": "Барсик",
-  "breed": "Британская короткошерстная",
-  "gender_id": 1,
-  "age": 3,
-  "color": "Серый",
-  "city_id": 1,
-  "description": "Спокойный и ласковый кот"
-}
-
-POST /report
-
-{
-  "user_id": 4,
-  "animal_id": 2,
-  "report_type_id": 1,
-  "title": "Ищем дом для Барсика",
-  "description": "Добрый и спокойный кот ищет новый дом.",
-  "location": "Москва"
-}
-
-POST /message
-{
-  "report_id": 1,
-  "user_id": 5,
-  "text": "Здравствуйте! Хотел бы узнать подробнее."
-}
-
-post /photo
-{
-  "animal_id": 3,
-  "report_id": 1,
-  "url": "https://example.com/cat.jpg"
-}
+-- Регистрацию и вход проверяй через Swagger:
+-- POST /register и POST /login.
+-- Пароль хэшируется в Python-приложении, поэтому передавать обычный пароль
+-- напрямую в api.register_user нельзя.
