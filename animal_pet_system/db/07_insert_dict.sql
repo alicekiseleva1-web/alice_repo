@@ -37,17 +37,6 @@ values
 ('help');
 
 
--- города
-
-insert into dict.city(name)
-values
-('москва'),
-('санкт-петербург'),
-('казань'),
-('екатеринбург'),
-('новосибирск');
-
-
 -- статусы пользователей
 
 insert into dict.user_status

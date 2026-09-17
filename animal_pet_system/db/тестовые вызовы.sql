@@ -14,6 +14,33 @@ select * from dict.report_type order by report_type_id;
 select * from dict.report_status order by report_status_id;
 select * from dict.help_request_status order by help_request_status_id;
 
+-- Состояние справочника городов.
+-- В норме новые города всегда имеют FIAS ID.
+select
+    city_id,
+    name,
+    fias_id
+from dict.city
+order by city_id;
+
+-- Старые записи без FIAS ID.
+select
+    city_id,
+    name
+from dict.city
+where fias_id is null
+order by city_id;
+
+-- Названия, которые встречаются больше одного раза.
+select
+    lower(btrim(name)) as normalized_name,
+    count(*) as cities_count,
+    array_agg(city_id order by city_id) as city_ids
+from dict.city
+group by lower(btrim(name))
+having count(*) > 1
+order by normalized_name;
+
 
 -- Карточки пользователя и животного
 select * from api.get_user(1);
