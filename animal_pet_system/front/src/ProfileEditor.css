@@ -1,0 +1,93 @@
+.my-animals-section {
+  grid-column: 1 / -1;
+}
+
+.my-animals-section h3 {
+  margin: 0 0 16px;
+  color: #1d3327;
+}
+
+.profile-edit-form {
+  width: 100%;
+  min-width: 0;
+}
+
+.profile-edit-form fieldset {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.profile-edit-form label {
+  display: grid;
+  gap: 7px;
+  color: #1d3327;
+  font-weight: 700;
+}
+
+.profile-edit-form input,
+.profile-edit-form select,
+.profile-edit-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #c9dacd;
+  border-radius: 10px;
+  background: white;
+  color: #24312b;
+  font: inherit;
+}
+
+.profile-edit-form textarea {
+  resize: vertical;
+}
+
+.profile-edit-form :is(input, select, textarea, button):focus-visible {
+  outline: 2px solid #2f6d50;
+  outline-offset: 2px;
+}
+
+.profile-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.profile-edit-form .profile-edit-note {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.profile-edit-form .profile-edit-error {
+  margin-top: 14px;
+  color: #b42318;
+}
+
+.profile-edit-form fieldset:disabled {
+  opacity: 0.7;
+}
+
+.profile-edit-city small {
+  display: block;
+  margin-top: 6px;
+  color: #52615a;
+}
+
+.profile-report-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .profile-report-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

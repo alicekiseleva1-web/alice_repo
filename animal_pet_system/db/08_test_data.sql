@@ -186,6 +186,7 @@ insert into main.help_request (
     user_id,
     title,
     description,
+    help_category_id,
     help_request_status_id
 )
 values
@@ -194,5 +195,6 @@ values
     2,
     'нужен корм',
     'требуется сухой корм для собак',
+    (select help_category_id from dict.help_category where code = 'supplies'),
     1
 );

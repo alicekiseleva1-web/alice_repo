@@ -48,6 +48,8 @@ def validate_image(file):
     file_size = file.file.tell()
     file.file.seek(0)
 
+    if file_size == 0:
+        raise RuntimeError("Выбран пустой файл")
     if file_size > MAX_IMAGE_SIZE_BYTES:
         raise RuntimeError("Размер изображения не должен превышать 5 МБ")
 
@@ -74,6 +76,8 @@ def upload_image(file):
 
 def delete_image(public_id):
     try:
-        cloudinary.uploader.destroy(public_id, resource_type="image")
+        configure_cloudinary()
+        result = cloudinary.uploader.destroy(public_id, resource_type="image", invalidate=True)
+        return result.get("result") in ("ok", "not found")
     except Exception:
-        pass
+        return False

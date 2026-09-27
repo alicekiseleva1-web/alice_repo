@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import './AnimalsPage.css'
 
 const PAGE_SIZE = 24
+const animalCategories = [
+  { id: 4, label: 'Ищут дом' },
+  { id: 1, label: 'Пропали' },
+  { id: 2, label: 'Найдены' },
+]
 const genderLabels = { 1: 'Самец', 2: 'Самка', 3: 'Неизвестно' }
 
 function formatAge(age) {
@@ -122,7 +127,7 @@ function AnimalDialog({ animal, apiUrl, onClose }) {
           </>
         )}
         {photoStatus === 'loading' && <p role="status">Загружаем фотографии…</p>}
-        {photoStatus === 'error' && <p role="alert">Не удалось загрузить все фотографии. Попробуй открыть карточку ещё раз.</p>}
+        {photoStatus === 'error' && <p role="alert">Не удалось загрузить все фотографии. Попробуйте открыть карточку ещё раз.</p>}
         {photos.length > 0 ? (
           <>
             <button
@@ -158,7 +163,7 @@ function AnimalDialog({ animal, apiUrl, onClose }) {
 
 export default function AnimalsPage({ apiUrl }) {
   const [search, setSearch] = useState('')
-  const [request, setRequest] = useState({ query: '', page: 0, revision: 0 })
+  const [request, setRequest] = useState({ query: '', page: 0, revision: 0, reportTypeId: 4 })
   const [result, setResult] = useState({ items: [], busy: true, error: '', hasMore: false })
   const [selectedAnimal, setSelectedAnimal] = useState(null)
 
@@ -169,10 +174,11 @@ export default function AnimalsPage({ apiUrl }) {
         const params = new URLSearchParams({
           limit: String(PAGE_SIZE + 1),
           offset: String(request.page * PAGE_SIZE),
+          report_type_id: String(request.reportTypeId),
         })
         if (request.query) params.set('query', request.query)
         const response = await fetch(apiUrl + '/animals?' + params, { signal: controller.signal })
-        if (!response.ok) throw new Error('Не удалось загрузить животных. Попробуй ещё раз.')
+        if (!response.ok) throw new Error('Не удалось загрузить животных. Повторите попытку.')
         const data = await response.json()
         if (controller.signal.aborted) return
         setResult((current) => {
@@ -186,9 +192,13 @@ export default function AnimalsPage({ apiUrl }) {
             hasMore: data.length > PAGE_SIZE,
           }
         })
-      } catch (error) {
+      } catch {
         if (!controller.signal.aborted) {
-          setResult((current) => ({ ...current, busy: false, error: error.message }))
+          setResult((current) => ({
+            ...current,
+            busy: false,
+            error: 'Не удалось загрузить животных. Проверьте доступность сервера и повторите попытку.',
+          }))
         }
       }
     }
@@ -199,7 +209,14 @@ export default function AnimalsPage({ apiUrl }) {
   function submitSearch(event) {
     event.preventDefault()
     setResult({ items: [], busy: true, error: '', hasMore: false })
-    setRequest((current) => ({ query: search.trim(), page: 0, revision: current.revision + 1 }))
+    setRequest((current) => ({ ...current, query: search.trim(), page: 0, revision: current.revision + 1 }))
+  }
+
+  function changeCategory(reportTypeId) {
+    if (reportTypeId === request.reportTypeId) return
+    setSelectedAnimal(null)
+    setResult({ items: [], busy: true, error: '', hasMore: false })
+    setRequest((current) => ({ ...current, reportTypeId, page: 0 }))
   }
 
   function loadMore() {
@@ -215,9 +232,19 @@ export default function AnimalsPage({ apiUrl }) {
   return (
     <section className="animals-page" id="animals">
       <div className="animals-heading">
-        <p className="eyebrow">Знакомься с нашими подопечными</p>
-        <h1>Животные</h1>
         <p>Фото, характер и контакты — всё о каждом животном в одной карточке.</p>
+      </div>
+      <div className="animal-categories" role="group" aria-label="Категории животных">
+        {animalCategories.map((category) => (
+          <button
+            key={category.id}
+            type="button"
+            aria-pressed={request.reportTypeId === category.id}
+            onClick={() => changeCategory(category.id)}
+          >
+            {category.label}
+          </button>
+        ))}
       </div>
       <form className="animals-search" onSubmit={submitSearch} role="search" aria-label="Поиск животных">
         <label htmlFor="animal-search">Кличка, порода или город</label>
@@ -237,8 +264,8 @@ export default function AnimalsPage({ apiUrl }) {
       {!result.busy && !result.error && result.items.length === 0 && (
         <div className="animals-empty">
           <span aria-hidden="true">🐾</span>
-          <h2>{request.query ? 'Никого не нашли' : 'Здесь скоро появятся животные'}</h2>
-          <p>{request.query ? 'Попробуй другую кличку, породу или город. Для полного списка очисти поиск и нажми «Найти».' : 'Карточки появятся после добавления животных в приложение.'}</p>
+          <h2>{request.query ? 'Никого не нашли' : 'В этой категории пока нет животных'}</h2>
+          <p>{request.query ? 'Укажите другую кличку, породу или город либо выберите другую вкладку.' : 'Здесь показываются животные с открытыми объявлениями выбранного типа.'}</p>
         </div>
       )}
       <div className="animals-grid" aria-busy={result.busy}>
@@ -252,7 +279,7 @@ export default function AnimalsPage({ apiUrl }) {
                 <span className="animal-card-name">{animal.animal_name || 'Без клички'}</span>
                 <span>{animal.breed || 'Порода не указана'} · {formatAge(animal.age)}</span>
                 <span className="animal-card-city">{animal.city_name || 'Город не указан'}</span>
-                <span className="animal-card-link">Познакомиться →</span>
+                <span className="animal-card-link">{request.reportTypeId === 4 ? 'Познакомиться →' : 'Подробнее →'}</span>
               </span>
             </button>
           </article>
@@ -269,4 +296,3 @@ export default function AnimalsPage({ apiUrl }) {
     </section>
   )
 }
-

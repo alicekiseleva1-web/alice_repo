@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 ## модель создания животного
@@ -19,6 +19,31 @@ class AnimalCreate(BaseModel):
 
 class AnimalStatusUpdate(BaseModel):
     animal_status_id: int
+
+
+class UserAnimalResponse(BaseModel):
+    animal_id: int
+    name: str | None
+    breed: str | None
+    gender_id: int | None
+    age: int | None
+    color: str | None
+    city_id: int | None
+    city_name: str | None
+    description: str | None
+
+
+class AnimalUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    user_id: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=100)
+    breed: str = Field(min_length=1, max_length=100)
+    gender_id: int = Field(gt=0)
+    age: int = Field(ge=0)
+    color: str = Field(min_length=1, max_length=100)
+    city_id: int = Field(gt=0)
+    description: str = Field(min_length=1, max_length=5000)
 
 
 class AnimalCatalogItem(BaseModel):

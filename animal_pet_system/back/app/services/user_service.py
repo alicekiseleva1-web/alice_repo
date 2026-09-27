@@ -161,6 +161,38 @@ def login_user(email, password):
         connection.close()
 
 
+def update_user_profile(user_id, first_name, last_name, phone, email, city_id):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("select api.update_user_profile(%s,%s,%s,%s,%s,%s)",
+                           (user_id, first_name, last_name, phone, email, city_id))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def change_user_password(user_id, current_password, new_password):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("select api.get_password_for_change(%s)", (user_id,))
+            saved_hash = cursor.fetchone()[0]
+            if not verify_password(current_password, saved_hash):
+                raise ValueError("Неверный текущий пароль")
+            cursor.execute("select api.change_user_password(%s,%s,%s)",
+                           (user_id, saved_hash, hash_password(new_password)))
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def resolve_city(city_name, city_fias_id):
 
     connection = get_connection()

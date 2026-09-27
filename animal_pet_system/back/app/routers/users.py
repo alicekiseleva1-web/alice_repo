@@ -1,4 +1,7 @@
 from fastapi import APIRouter, HTTPException
+from psycopg2.errors import InvalidParameterValue, NoDataFound, UniqueViolation
+from app.schemas.user import UserUpdate, PasswordChange
+from app.services.user_service import update_user_profile, change_user_password
 
 from app.schemas.user import (
     CityResolveRequest,
@@ -16,6 +19,32 @@ from app.services.user_service import get_user
 
 ## роутер пользователей
 router = APIRouter()
+
+
+@router.patch("/user/{user_id}")
+def update_user_route(user_id: int, data: UserUpdate):
+    try:
+        update_user_profile(user_id, **data.model_dump())
+    except NoDataFound as error:
+        raise HTTPException(404, error.diag.message_primary) from error
+    except InvalidParameterValue as error:
+        raise HTTPException(400, error.diag.message_primary) from error
+    except UniqueViolation as error:
+        raise HTTPException(409, "Этот email или телефон уже используется") from error
+    return {"message": "Личные данные сохранены"}
+
+
+@router.patch("/user/{user_id}/password")
+def change_password_route(user_id: int, data: PasswordChange):
+    try:
+        change_user_password(user_id, data.current_password, data.new_password)
+    except NoDataFound as error:
+        raise HTTPException(404, error.diag.message_primary) from error
+    except InvalidParameterValue as error:
+        raise HTTPException(400, error.diag.message_primary) from error
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return {"message": "Пароль изменён. При следующем входе используй новый пароль"}
 
 
 ## регистрация пользователя
@@ -89,10 +118,7 @@ def city_resolve_route(city_data: CityResolveRequest):
 
 
 ## получить пользователя
-## GET /user
-
-## одно объявление
-## GET /report/{report_id}
+## GET /user/{user_id}
 @router.get("/user/{user_id}", response_model=UserDetail)
 def user_route(user_id: int):
 

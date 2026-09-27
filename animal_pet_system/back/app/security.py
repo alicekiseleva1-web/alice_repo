@@ -24,6 +24,8 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, saved_hash: str) -> bool:
+    if not isinstance(saved_hash, str):
+        return False
     try:
         algorithm, iterations, salt_value, hash_value = saved_hash.split("$")
 

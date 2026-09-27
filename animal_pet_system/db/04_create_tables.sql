@@ -45,6 +45,13 @@ create table dict.user_status (
     name varchar(100) not null
 );
 
+create table dict.help_category (
+    help_category_id serial primary key,
+    code varchar(50) not null unique,
+    name varchar(100) not null,
+    description text not null
+);
+
 
 -- пользователи
 
@@ -128,6 +135,7 @@ create table main.photo (
     animal_id integer references main.animal(animal_id),
     report_id integer references main.report(report_id),
     url text not null,
+    public_id text,
     created_at timestamp default now()
 );
 
@@ -151,6 +159,7 @@ create table main.help_request (
     user_id integer references main.user(user_id),
     title varchar(255),
     description text,
+    help_category_id integer references dict.help_category(help_category_id),
     help_request_status_id integer not null references dict.help_request_status(help_request_status_id),
     created_at timestamp default now(),
     updated_at timestamp

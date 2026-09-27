@@ -1,11 +1,15 @@
 from fastapi import APIRouter, HTTPException, Query
+from psycopg2.errors import InsufficientPrivilege, InvalidParameterValue, NoDataFound
 
 from app.schemas.animal import AnimalCatalogItem, AnimalCreate, AnimalDetail, AnimalStatusUpdate
+from app.schemas.animal import AnimalUpdate, UserAnimalResponse
 from app.services.animal_service import (
     change_animal_status,
     create_animal,
     get_animal,
     get_animals,
+    update_animal,
+    user_animal_list,
 )
 
 
@@ -43,6 +47,7 @@ def animal_list_route(
     query: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=24, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    report_type_id: int | None = Query(default=None, ge=1),
 ):
     return [
         {
@@ -60,8 +65,27 @@ def animal_list_route(
             "photo_url": item[11],
             "shelter_name": item[12],
         }
-        for item in get_animals(query, limit, offset)
+        for item in get_animals(query, limit, offset, report_type_id)
     ]
+
+
+@router.get("/user/{user_id}/animals", response_model=list[UserAnimalResponse])
+def user_animals_route(user_id: int):
+    fields = ("animal_id", "name", "breed", "gender_id", "age", "color", "city_id", "city_name", "description")
+    return [dict(zip(fields, row)) for row in user_animal_list(user_id)]
+
+
+@router.patch("/animals/{animal_id}")
+def update_animal_route(animal_id: int, data: AnimalUpdate):
+    try:
+        update_animal(animal_id, **data.model_dump())
+    except NoDataFound as error:
+        raise HTTPException(status_code=404, detail=error.diag.message_primary) from error
+    except InsufficientPrivilege as error:
+        raise HTTPException(status_code=403, detail=error.diag.message_primary) from error
+    except InvalidParameterValue as error:
+        raise HTTPException(status_code=400, detail=error.diag.message_primary) from error
+    return {"message": "Данные животного сохранены"}
 
 
 @router.get("/animals/{animal_id}", response_model=AnimalDetail)

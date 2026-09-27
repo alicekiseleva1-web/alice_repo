@@ -139,6 +139,22 @@ def report(report_id):
         connection.close()
 
 
+def update_report(report_id, user_id, report_type_id, title, description, location):
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "select api.update_report(%s,%s,%s,%s,%s,%s)",
+                (report_id, user_id, report_type_id, title, description, location),
+            )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def close_report(report_id):
     connection = get_connection()
     cursor = None

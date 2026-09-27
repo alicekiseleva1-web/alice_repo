@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ReportCreate(BaseModel):
@@ -10,6 +10,16 @@ class ReportCreate(BaseModel):
     title: str
     description: str
     location: str
+
+
+class ReportUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    user_id: int = Field(gt=0)
+    report_type_id: int = Field(gt=0)
+    title: str = Field(min_length=1, max_length=255)
+    description: str = Field(min_length=1, max_length=5000)
+    location: str = Field(min_length=1, max_length=1000)
 
 
 class ReportResponse(BaseModel):

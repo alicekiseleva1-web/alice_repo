@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from psycopg2.errors import InsufficientPrivilege, InvalidParameterValue, NoDataFound
 
 from app.schemas.report import (
     ReportCreate,
@@ -6,6 +7,7 @@ from app.schemas.report import (
     ReportResponse,
     ReportStatusUpdate,
     UserReportResponse,
+    ReportUpdate,
 )
 
 from app.services.report_service import (
@@ -15,6 +17,7 @@ from app.services.report_service import (
     close_report,
     change_report_status,
     user_report_list,
+    update_report,
 )
 
 
@@ -117,6 +120,19 @@ def report_route(report_id: int):
         "shelter_name": item[16],
         "city_name": item[17],
     }
+
+
+@router.patch("/report/{report_id}")
+def update_report_route(report_id: int, data: ReportUpdate):
+    try:
+        update_report(report_id, **data.model_dump())
+    except NoDataFound as error:
+        raise HTTPException(status_code=404, detail=error.diag.message_primary) from error
+    except InsufficientPrivilege as error:
+        raise HTTPException(status_code=403, detail=error.diag.message_primary) from error
+    except InvalidParameterValue as error:
+        raise HTTPException(status_code=400, detail=error.diag.message_primary) from error
+    return {"message": "Объявление сохранено"}
 
 
 @router.patch("/report/{report_id}/close")

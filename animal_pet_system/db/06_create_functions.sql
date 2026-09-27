@@ -1389,12 +1389,298 @@ end;
 $$;
 
 
+-- личные данные, пароль и управление фотографиями
+
+create or replace function main.update_user_profile(
+    user_id_value integer, first_name_value varchar, last_name_value varchar,
+    phone_value varchar, email_value varchar, city_id_value integer
+)
+returns void language plpgsql as $$
+begin
+    perform 1 from main.user where user_id=user_id_value for update;
+    if not found then
+        raise exception 'Пользователь не найден' using errcode='P0002';
+    end if;
+    if nullif(btrim(first_name_value),'') is null or nullif(btrim(last_name_value),'') is null
+       or nullif(btrim(phone_value),'') is null or nullif(btrim(email_value),'') is null then
+        raise exception 'Заполни личные данные' using errcode='22023';
+    end if;
+    if not exists (select 1 from dict.city where city_id=city_id_value) then
+        raise exception 'Город не найден' using errcode='22023';
+    end if;
+    if exists (select 1 from main.user where user_id<>user_id_value and lower(email)=lower(btrim(email_value))) then
+        raise exception 'Этот email уже используется' using errcode='23505';
+    end if;
+    update main.user set first_name=btrim(first_name_value),last_name=btrim(last_name_value),
+        phone=btrim(phone_value),email=btrim(email_value),city_id=city_id_value
+    where user_id=user_id_value;
+end; $$;
+create or replace function api.update_user_profile(
+    user_id_value integer, first_name_value varchar, last_name_value varchar,
+    phone_value varchar, email_value varchar, city_id_value integer
+)
+returns void language sql as $$
+    select main.update_user_profile(user_id_value,first_name_value,last_name_value,phone_value,email_value,city_id_value);
+$$;
+
+create or replace function main.get_password_for_change(user_id_value integer)
+returns varchar language plpgsql as $$
+declare saved_hash varchar;
+begin
+    select password_hash into saved_hash from main.user where user_id=user_id_value for update;
+    if not found then
+        raise exception 'Пользователь не найден' using errcode='P0002';
+    end if;
+    return saved_hash;
+end; $$;
+create or replace function api.get_password_for_change(user_id_value integer)
+returns varchar language sql as $$ select main.get_password_for_change(user_id_value); $$;
+
+create or replace function main.change_user_password(
+    user_id_value integer, expected_hash varchar, new_hash varchar
+)
+returns void language plpgsql as $$
+begin
+    update main.user set password_hash=new_hash
+    where user_id=user_id_value and password_hash=expected_hash;
+    if not found then
+        raise exception 'Пароль уже изменился. Повтори вход и попробуй снова' using errcode='22023';
+    end if;
+end; $$;
+create or replace function api.change_user_password(
+    user_id_value integer, expected_hash varchar, new_hash varchar
+)
+returns void language sql as $$ select main.change_user_password(user_id_value,expected_hash,new_hash); $$;
+
+create or replace function main.check_photo_owner(animal_id_value integer,user_id_value integer)
+returns void language plpgsql as $$
+declare owner_id_value integer;
+begin
+    select owner_id into owner_id_value from main.animal where animal_id=animal_id_value for update;
+    if not found then
+        raise exception 'Животное не найдено' using errcode='P0002';
+    end if;
+    if user_id_value is null or owner_id_value is distinct from user_id_value then
+        raise exception 'Менять фотографии может только владелец животного' using errcode='42501';
+    end if;
+end; $$;
+create or replace function api.check_photo_owner(animal_id_value integer,user_id_value integer)
+returns void language sql as $$ select main.check_photo_owner(animal_id_value,user_id_value); $$;
+
+create or replace function main.save_animal_photo(
+    animal_id_value integer,user_id_value integer,url_value text,public_id_value text,
+    photo_id_value integer default null,report_id_value integer default null
+)
+returns table(saved_photo_id integer,old_public_id text)
+language plpgsql as $$
+declare previous_id text; result_id integer;
+begin
+    perform main.check_photo_owner(animal_id_value,user_id_value);
+    if photo_id_value is not null then
+        select p.public_id into previous_id from main.photo p
+        where p.photo_id=photo_id_value and p.animal_id=animal_id_value for update;
+        if not found then
+            raise exception 'Фотография этого животного не найдена' using errcode='P0002';
+        end if;
+        update main.photo set url=url_value,public_id=public_id_value where photo_id=photo_id_value;
+        result_id:=photo_id_value;
+    else
+        if (select count(*) from main.photo where animal_id=animal_id_value)>=2 then
+            raise exception 'Можно сохранить не больше двух фотографий. Замени или удали одну из них' using errcode='22023';
+        end if;
+        if report_id_value is not null and not exists (
+            select 1 from main.report where report_id=report_id_value and animal_id=animal_id_value
+        ) then
+            raise exception 'Объявление не относится к этому животному' using errcode='22023';
+        end if;
+        insert into main.photo(animal_id,report_id,url,public_id)
+        values(animal_id_value,report_id_value,url_value,public_id_value)
+        returning photo_id into result_id;
+    end if;
+    return query select result_id,previous_id;
+end; $$;
+create or replace function api.save_animal_photo(
+    animal_id_value integer,user_id_value integer,url_value text,public_id_value text,
+    photo_id_value integer default null,report_id_value integer default null
+)
+returns table(saved_photo_id integer,old_public_id text)
+language sql as $$
+    select * from main.save_animal_photo(animal_id_value,user_id_value,url_value,public_id_value,photo_id_value,report_id_value);
+$$;
+
+create or replace function main.delete_animal_photo(
+    animal_id_value integer,user_id_value integer,photo_id_value integer
+)
+returns text language plpgsql as $$
+declare previous_id text;
+begin
+    perform main.check_photo_owner(animal_id_value,user_id_value);
+    delete from main.photo where photo_id=photo_id_value and animal_id=animal_id_value
+    returning public_id into previous_id;
+    if not found then
+        raise exception 'Фотография этого животного не найдена' using errcode='P0002';
+    end if;
+    return previous_id;
+end; $$;
+create or replace function api.delete_animal_photo(
+    animal_id_value integer,user_id_value integer,photo_id_value integer
+)
+returns text language sql as $$ select main.delete_animal_photo(animal_id_value,user_id_value,photo_id_value); $$;
+
+-- редактирование животных и объявлений в личном кабинете
+
+create or replace function main.get_user_animals(user_id_value integer)
+returns table (
+    animal_id integer, name varchar, breed varchar, gender_id integer,
+    age integer, color varchar, city_id integer, city_name varchar, description text
+)
+language sql stable
+as $$
+    select a.animal_id, a.name, a.breed, a.gender_id, a.age,
+           a.color, a.city_id, c.name, a.description
+    from main.animal a
+    left join dict.city c on c.city_id = a.city_id
+    where a.owner_id = user_id_value
+    order by a.created_at desc nulls last, a.animal_id desc;
+$$;
+
+create or replace function api.get_user_animals(user_id_value integer)
+returns table (
+    animal_id integer, name varchar, breed varchar, gender_id integer,
+    age integer, color varchar, city_id integer, city_name varchar, description text
+)
+language sql stable
+as $$
+    select * from main.get_user_animals(user_id_value);
+$$;
+
+create or replace function main.update_animal(
+    animal_id_value integer, user_id_value integer,
+    name_value varchar, breed_value varchar, gender_id_value integer,
+    age_value integer, color_value varchar, city_id_value integer,
+    description_value text
+)
+returns void
+language plpgsql
+as $$
+declare
+    owner_id_value integer;
+begin
+    select a.owner_id into owner_id_value
+    from main.animal a where a.animal_id = animal_id_value
+    for update;
+
+    if not found then
+        raise exception 'Животное не найдено' using errcode = 'P0002';
+    end if;
+    if user_id_value is null or owner_id_value is distinct from user_id_value then
+        raise exception 'Редактировать животное может только его владелец'
+            using errcode = '42501';
+    end if;
+    if nullif(btrim(name_value), '') is null
+       or nullif(btrim(breed_value), '') is null
+       or nullif(btrim(color_value), '') is null
+       or nullif(btrim(description_value), '') is null
+       or age_value is null or age_value < 0 then
+        raise exception 'Заполни данные животного и укажи неотрицательный возраст'
+            using errcode = '22023';
+    end if;
+    if not exists (select 1 from dict.city where city_id = city_id_value) then
+        raise exception 'Выбранный город не найден' using errcode = '22023';
+    end if;
+    if not exists (
+        select 1 from dict.gender where gender_id = gender_id_value
+    ) then
+        raise exception 'Выбранный пол не найден' using errcode = '22023';
+    end if;
+
+    update main.animal
+    set name = btrim(name_value), breed = breed_value,
+        gender_id = gender_id_value, age = age_value, color = color_value,
+        city_id = city_id_value, description = description_value
+    where animal_id = animal_id_value;
+end;
+$$;
+
+create or replace function api.update_animal(
+    animal_id_value integer, user_id_value integer,
+    name_value varchar, breed_value varchar, gender_id_value integer,
+    age_value integer, color_value varchar, city_id_value integer,
+    description_value text
+)
+returns void
+language sql
+as $$
+    select main.update_animal(
+        animal_id_value, user_id_value, name_value, breed_value,
+        gender_id_value, age_value, color_value, city_id_value, description_value
+    );
+$$;
+
+create or replace function main.update_report(
+    report_id_value integer, user_id_value integer, report_type_id_value integer,
+    title_value varchar, description_value text, location_value text
+)
+returns void
+language plpgsql
+as $$
+declare
+    author_id_value integer;
+begin
+    select r.user_id into author_id_value
+    from main.report r where r.report_id = report_id_value
+    for update;
+
+    if not found then
+        raise exception 'Объявление не найдено' using errcode = 'P0002';
+    end if;
+    if user_id_value is null or author_id_value is distinct from user_id_value then
+        raise exception 'Редактировать объявление может только его автор'
+            using errcode = '42501';
+    end if;
+    if nullif(btrim(title_value), '') is null
+       or nullif(btrim(description_value), '') is null
+       or nullif(btrim(location_value), '') is null then
+        raise exception 'Заполни заголовок, описание и место'
+            using errcode = '22023';
+    end if;
+    if not exists (
+        select 1 from dict.report_type where report_type_id = report_type_id_value
+    ) then
+        raise exception 'Тип объявления не найден' using errcode = '22023';
+    end if;
+
+    update main.report
+    set title = btrim(title_value), description = btrim(description_value),
+        location = btrim(location_value), report_type_id = report_type_id_value,
+        updated_at = now()
+    where report_id = report_id_value;
+end;
+$$;
+
+create or replace function api.update_report(
+    report_id_value integer, user_id_value integer, report_type_id_value integer,
+    title_value varchar, description_value text, location_value text
+)
+returns void
+language sql
+as $$
+    select main.update_report(
+        report_id_value, user_id_value, report_type_id_value,
+        title_value, description_value, location_value
+    );
+$$;
+
 -- каталог животных
+
+drop function if exists api.get_animals(varchar, integer, integer);
+drop function if exists main.get_animals(varchar, integer, integer);
 
 create or replace function main.get_animals(
     query_value varchar default null,
     limit_value integer default 24,
-    offset_value integer default 0
+    offset_value integer default 0,
+    report_type_id_value integer default null
 )
 returns table (
     animal_id integer,
@@ -1430,10 +1716,18 @@ as $$
     left join dict.city c on c.city_id = a.city_id
     left join main.user u on u.user_id = a.owner_id
     left join main.shelter s on s.manager_user_id = a.owner_id
-    where nullif(btrim(query_value), '') is null
+    where (nullif(btrim(query_value), '') is null
        or position(lower(btrim(query_value)) in lower(coalesce(a.name, ''))) > 0
        or position(lower(btrim(query_value)) in lower(coalesce(a.breed, ''))) > 0
-       or position(lower(btrim(query_value)) in lower(coalesce(c.name, ''))) > 0
+       or position(lower(btrim(query_value)) in lower(coalesce(c.name, ''))) > 0)
+      and (report_type_id_value is null or exists (
+          select 1
+          from main.report r
+          join dict.report_status rs on rs.report_status_id = r.report_status_id
+          where r.animal_id = a.animal_id
+            and r.report_type_id = report_type_id_value
+            and rs.code = 'open'
+      ))
     order by a.created_at desc nulls last, a.animal_id desc
     limit least(greatest(coalesce(limit_value, 24), 1), 100)
     offset greatest(coalesce(offset_value, 0), 0);
@@ -1443,7 +1737,8 @@ $$;
 create or replace function api.get_animals(
     query_value varchar default null,
     limit_value integer default 24,
-    offset_value integer default 0
+    offset_value integer default 0,
+    report_type_id_value integer default null
 )
 returns table (
     animal_id integer,
@@ -1463,7 +1758,7 @@ returns table (
 language sql
 stable
 as $$
-    select * from main.get_animals(query_value, limit_value, offset_value);
+    select * from main.get_animals(query_value, limit_value, offset_value, report_type_id_value);
 $$;
 
 
@@ -1829,252 +2124,190 @@ $$;
 
 -- заявки помощи приютам
 
-create or replace function main.create_help_request(
-    shelter_id_value integer,
-    user_id_value integer,
-    title_value varchar,
-    description_value text
-)
-returns integer
-language plpgsql
-as
-$$
-declare
-    request_id_value integer;
-    status_id_value integer;
-begin
+drop function if exists api.create_help_request(integer, integer, varchar, text);
+drop function if exists main.create_help_request(integer, integer, varchar, text);
+drop function if exists api.get_help_requests(integer, integer);
+drop function if exists main.get_help_requests(integer, integer);
+drop function if exists api.change_help_request_status(integer, integer);
+drop function if exists main.change_help_request_status(integer, integer);
 
-    select hrs.help_request_status_id
-    into status_id_value
-    from dict.help_request_status hrs
-    where hrs.code = 'open';
-
-    if status_id_value is null then
-        raise exception 'статус заявки open не найден';
-    end if;
-
-    if not exists (
-        select 1
-        from main.shelter s
-        where s.shelter_id = shelter_id_value
-    ) then
-        raise exception 'приют с id % не найден', shelter_id_value;
-    end if;
-
-    if not exists (
-        select 1
-        from main.user u
-        where u.user_id = user_id_value
-    ) then
-        raise exception 'пользователь с id % не найден', user_id_value;
-    end if;
-
-    insert into main.help_request
-    (
-        shelter_id,
-        user_id,
-        title,
-        description,
-        help_request_status_id
-    )
-    values
-    (
-        shelter_id_value,
-        user_id_value,
-        title_value,
-        description_value,
-        status_id_value
-    )
-    returning request_id
-    into request_id_value;
-
-    return request_id_value;
-
-end;
+create or replace function main.get_help_categories()
+returns table(help_category_id integer, name varchar, description text)
+language sql stable as $$
+    select help_category_id, name, description from dict.help_category order by help_category_id;
 $$;
+create or replace function api.get_help_categories()
+returns table(help_category_id integer, name varchar, description text)
+language sql stable as $$ select * from main.get_help_categories(); $$;
 
+create or replace function main.get_help_statuses()
+returns table(help_request_status_id integer, code varchar, name varchar)
+language sql stable as $$
+    select help_request_status_id, code, name from dict.help_request_status
+    where code in ('open', 'in_progress', 'closed') order by help_request_status_id;
+$$;
+create or replace function api.get_help_statuses()
+returns table(help_request_status_id integer, code varchar, name varchar)
+language sql stable as $$ select * from main.get_help_statuses(); $$;
 
--- api создание заявки помощи
+create or replace function main.create_help_request(
+    shelter_id_value integer, user_id_value integer,
+    title_value varchar, description_value text, help_category_id_value integer
+)
+returns integer language plpgsql as $$
+declare
+    new_id integer;
+    open_id integer;
+begin
+    if not exists (
+        select 1 from main.shelter
+        where shelter_id = shelter_id_value and manager_user_id = user_id_value
+    ) then
+        raise exception 'Создать заявку может только сотрудник своего приюта' using errcode = '42501';
+    end if;
+    if nullif(btrim(title_value), '') is null or nullif(btrim(description_value), '') is null then
+        raise exception 'Заполни заголовок и описание' using errcode = '22023';
+    end if;
+    if not exists (select 1 from dict.help_category where help_category_id = help_category_id_value) then
+        raise exception 'Выбери категорию помощи' using errcode = '22023';
+    end if;
+    select help_request_status_id into open_id from dict.help_request_status where code = 'open';
+    if open_id is null then
+        raise exception 'В справочнике отсутствует статус open' using errcode = '22023';
+    end if;
+    insert into main.help_request(shelter_id,user_id,title,description,help_category_id,help_request_status_id)
+    values(shelter_id_value,user_id_value,btrim(title_value),btrim(description_value),help_category_id_value,open_id)
+    returning request_id into new_id;
+    return new_id;
+end; $$;
 
 create or replace function api.create_help_request(
-    shelter_id_value integer,
-    user_id_value integer,
-    title_value varchar,
-    description_value text
+    shelter_id_value integer, user_id_value integer,
+    title_value varchar, description_value text, help_category_id_value integer
 )
-returns integer
-language plpgsql
-as
-$$
-begin
-
-    return main.create_help_request(
-        shelter_id_value,
-        user_id_value,
-        title_value,
-        description_value
-    );
-
-end;
+returns integer language sql as $$
+    select main.create_help_request(shelter_id_value,user_id_value,title_value,description_value,help_category_id_value);
 $$;
-
-
--- список заявок помощи
 
 create or replace function main.get_help_requests(
     shelter_id_value integer default null,
-    help_request_status_id_value integer default null
+    help_request_status_id_value integer default null,
+    help_category_id_value integer default null,
+    include_closed_value boolean default false,
+    limit_value integer default 24, offset_value integer default 0
 )
-returns table
-(
-    request_id integer,
-    shelter_id integer,
-    shelter_name varchar,
-    user_id integer,
-    user_name varchar,
-    title varchar,
-    description text,
-    help_request_status_id integer,
-    status_name varchar,
-    created_at timestamp,
-    updated_at timestamp
-)
-language plpgsql
-as
-$$
-begin
-
-    return query
-
-    select
-        hr.request_id,
-        s.shelter_id,
-        s.name as shelter_name,
-        u.user_id,
-        u.first_name as user_name,
-        hr.title,
-        hr.description,
-        hr.help_request_status_id,
-        hrs.name as status_name,
-        hr.created_at,
-        hr.updated_at
-
+returns table(request_id integer, shelter_id integer, shelter_name varchar,
+    user_id integer, user_name varchar, title varchar, description text,
+    help_request_status_id integer, status_name varchar,
+    created_at timestamp, updated_at timestamp, help_category_id integer,
+    category_name varchar, city_name varchar, shelter_address text,
+    contact_phone varchar, contact_email varchar, status_code varchar)
+language sql stable as $$
+    select hr.request_id,s.shelter_id,s.name,u.user_id,u.first_name,
+           hr.title,hr.description,hr.help_request_status_id,hrs.name,
+           hr.created_at,hr.updated_at,hr.help_category_id,hc.name,c.name,s.address,
+           coalesce(nullif(btrim(s.phone),''),u.phone),
+           coalesce(nullif(btrim(s.email),''),u.email),hrs.code
     from main.help_request hr
-
-    join main.shelter s
-        on s.shelter_id = hr.shelter_id
-
-    join main.user u
-        on u.user_id = hr.user_id
-
-    join dict.help_request_status hrs
-        on hrs.help_request_status_id = hr.help_request_status_id
-
-    where
-        (
-            shelter_id_value is null
-            or hr.shelter_id = shelter_id_value
-        )
-        and (
-            help_request_status_id_value is null
-            or hr.help_request_status_id = help_request_status_id_value
-        )
-
-    order by hr.created_at desc;
-
-end;
+    join main.shelter s on s.shelter_id = hr.shelter_id and s.manager_user_id = hr.user_id
+    join main.user u on u.user_id = hr.user_id
+    join dict.help_request_status hrs on hrs.help_request_status_id = hr.help_request_status_id
+    left join dict.help_category hc on hc.help_category_id = hr.help_category_id
+    left join dict.city c on c.city_id = s.city_id
+    where (shelter_id_value is null or hr.shelter_id = shelter_id_value)
+      and (help_request_status_id_value is null or hr.help_request_status_id = help_request_status_id_value)
+      and (help_category_id_value is null or hr.help_category_id = help_category_id_value)
+      and (include_closed_value or hrs.code in ('open','in_progress'))
+    order by hr.created_at desc nulls last,hr.request_id desc
+    limit least(greatest(coalesce(limit_value,24),1),100)
+    offset greatest(coalesce(offset_value,0),0);
 $$;
-
-
--- api список заявок помощи
 
 create or replace function api.get_help_requests(
     shelter_id_value integer default null,
-    help_request_status_id_value integer default null
+    help_request_status_id_value integer default null,
+    help_category_id_value integer default null,
+    include_closed_value boolean default false,
+    limit_value integer default 24, offset_value integer default 0
 )
-returns table
-(
-    request_id integer,
-    shelter_id integer,
-    shelter_name varchar,
-    user_id integer,
-    user_name varchar,
-    title varchar,
-    description text,
-    help_request_status_id integer,
-    status_name varchar,
-    created_at timestamp,
-    updated_at timestamp
-)
-language plpgsql
-as
-$$
-begin
-
-    return query
-
-    select *
-    from main.get_help_requests(
-        shelter_id_value,
-        help_request_status_id_value
-    );
-
-end;
+returns table(request_id integer, shelter_id integer, shelter_name varchar,
+    user_id integer, user_name varchar, title varchar, description text,
+    help_request_status_id integer, status_name varchar,
+    created_at timestamp, updated_at timestamp, help_category_id integer,
+    category_name varchar, city_name varchar, shelter_address text,
+    contact_phone varchar, contact_email varchar, status_code varchar)
+language sql stable as $$
+    select * from main.get_help_requests(shelter_id_value,help_request_status_id_value,
+        help_category_id_value,include_closed_value,limit_value,offset_value);
 $$;
 
+create or replace function main.update_help_request(
+    request_id_value integer,user_id_value integer,
+    title_value varchar,description_value text,help_category_id_value integer
+)
+returns void language plpgsql as $$
+declare
+    shelter_id_value integer;
+begin
+    select hr.shelter_id into shelter_id_value from main.help_request hr
+    where hr.request_id = request_id_value for update;
+    if not found then
+        raise exception 'Заявка не найдена' using errcode = 'P0002';
+    end if;
+    if not exists (
+        select 1 from main.shelter where shelter_id = shelter_id_value and manager_user_id = user_id_value
+    ) then
+        raise exception 'Редактировать заявку может только сотрудник этого приюта' using errcode = '42501';
+    end if;
+    if nullif(btrim(title_value),'') is null or nullif(btrim(description_value),'') is null then
+        raise exception 'Заполни заголовок и описание' using errcode = '22023';
+    end if;
+    if not exists (select 1 from dict.help_category where help_category_id = help_category_id_value) then
+        raise exception 'Выбери категорию помощи' using errcode = '22023';
+    end if;
+    update main.help_request set title=btrim(title_value),description=btrim(description_value),
+        help_category_id=help_category_id_value,updated_at=now()
+    where request_id=request_id_value;
+end; $$;
 
--- изменение статуса заявки
+create or replace function api.update_help_request(
+    request_id_value integer,user_id_value integer,
+    title_value varchar,description_value text,help_category_id_value integer
+)
+returns void language sql as $$
+    select main.update_help_request(request_id_value,user_id_value,title_value,description_value,help_category_id_value);
+$$;
 
 create or replace function main.change_help_request_status(
-    request_id_value integer,
-    help_request_status_id_value integer
+    request_id_value integer,help_request_status_id_value integer,user_id_value integer
 )
-returns void
-language plpgsql
-as
-$$
+returns void language plpgsql as $$
+declare
+    shelter_id_value integer;
 begin
-
-    if not exists (
-        select 1
-        from dict.help_request_status
-        where help_request_status_id = help_request_status_id_value
-    ) then
-        raise exception 'статус заявки с id % не найден',
-            help_request_status_id_value;
-    end if;
-
-    update main.help_request
-    set
-        help_request_status_id = help_request_status_id_value,
-        updated_at = now()
-    where request_id = request_id_value;
-
+    select hr.shelter_id into shelter_id_value from main.help_request hr
+    where hr.request_id = request_id_value for update;
     if not found then
-        raise exception 'заявка с id % не найдена',
-            request_id_value;
+        raise exception 'Заявка не найдена' using errcode = 'P0002';
     end if;
-
-end;
-$$;
-
-
--- api изменение статуса заявки
+    if not exists (
+        select 1 from main.shelter where shelter_id=shelter_id_value and manager_user_id=user_id_value
+    ) then
+        raise exception 'Изменить статус может только сотрудник этого приюта' using errcode = '42501';
+    end if;
+    if not exists (
+        select 1 from dict.help_request_status
+        where help_request_status_id=help_request_status_id_value and code in ('open','in_progress','closed')
+    ) then
+        raise exception 'Недопустимый статус заявки' using errcode = '22023';
+    end if;
+    update main.help_request set help_request_status_id=help_request_status_id_value,updated_at=now()
+    where request_id=request_id_value;
+end; $$;
 
 create or replace function api.change_help_request_status(
-    request_id_value integer,
-    help_request_status_id_value integer
+    request_id_value integer,help_request_status_id_value integer,user_id_value integer
 )
-returns void
-language plpgsql
-as
-$$
-begin
-
-    perform main.change_help_request_status(
-        request_id_value,
-        help_request_status_id_value
-    );
-
-end;
+returns void language sql as $$
+    select main.change_help_request_status(request_id_value,help_request_status_id_value,user_id_value);
 $$;

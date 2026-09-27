@@ -32,6 +32,29 @@
   margin: 28px 0;
 }
 
+.animal-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.animal-categories button {
+  padding: 11px 20px;
+  border: 1px solid #c9dacd;
+  border-radius: 999px;
+  background: #fff;
+  color: #2f6d50;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.animal-categories button[aria-pressed='true'] {
+  border-color: #2f6d50;
+  background: #2f6d50;
+  color: #fff;
+}
+
 .animals-search label {
   display: block;
   margin-bottom: 8px;
@@ -329,4 +352,3 @@
     transition: none;
   }
 }
-

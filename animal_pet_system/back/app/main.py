@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -30,6 +31,16 @@ app.include_router(help_requests.router)
 app.include_router(shelters.router)
 
 ## глобальный обработчик ошибок
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={
+        "detail": [
+            {"loc": error["loc"], "msg": error["msg"], "type": error["type"]}
+            for error in exc.errors()
+        ]
+    })
+
+
 ## отдаёт только понятный текст ошибки
 @app.exception_handler(Exception)
 async def exception_handler(request: Request, exc: Exception):

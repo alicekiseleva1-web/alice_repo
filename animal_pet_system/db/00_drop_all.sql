@@ -1,19 +1,14 @@
-drop schema auth cascade;
-drop schema api cascade;
-drop schema main cascade;
-drop schema dict cascade;
+-- Полное удаление схем проекта и содержащихся в них данных.
+-- Не входит в первичную установку или обычный запуск приложения.
+-- Выполняется только для намеренного сброса БД после резервного копирования.
+-- CASCADE также удаляет зависимые объекты, в том числе из других схем.
+-- Для создания структуры после сброса используются скрипты 03–07.
 
-create schema auth;
-create schema api;
-create schema main;
-create schema dict;
+begin;
 
-truncate table
-    main.help_request,
-    main.message,
-    main.photo,
-    main.report,
-    main.animal,
-    main.shelter,
-    main.user
-restart identity cascade;
+drop schema if exists auth cascade;
+drop schema if exists api cascade;
+drop schema if exists main cascade;
+drop schema if exists dict cascade;
+
+commit;

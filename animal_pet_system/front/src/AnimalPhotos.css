@@ -1,0 +1,17 @@
+.animal-photo-editor { width: 100%; min-width: 0; }
+.animal-photo-editor > p { line-height: 1.5; }
+.photo-editor-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 16px 0; }
+.photo-editor-grid figure { margin: 0; padding: 12px; border: 1px solid #c9dacd; border-radius: 14px; }
+.photo-editor-grid img, .photo-preview img { width: 100%; height: 200px; display: block; object-fit: contain; background: #e6f1e9; border-radius: 10px; }
+.photo-editor-grid figcaption { display: grid; gap: 12px; margin-top: 12px; }
+.animal-photo-editor label { display: grid; gap: 8px; font-weight: 700; color: #1d3327; }
+.animal-photo-editor input { width: 100%; min-width: 0; font-size: 13px; }
+.photo-add-label { padding: 16px; border: 1px dashed #c9dacd; border-radius: 12px; margin: 16px 0; }
+.photo-preview, .photo-delete-confirm { padding: 16px; margin: 16px 0; border: 1px solid #c9dacd; border-radius: 14px; }
+.photo-preview img { height: 280px; margin-bottom: 16px; }
+.photo-delete-button { padding: 10px 14px; border: 1px solid #b42318; border-radius: 10px; color: #b42318; background: white; cursor: pointer; }
+.photo-delete-confirm { border-color: #e8c3bf; background: #fff8f6; }
+.animal-photo-editor .photo-editor-error { color: #b42318; }
+.animal-photo-editor button:disabled { opacity: .6; cursor: default; }
+.animal-photo-editor :is(button,input):focus-visible { outline: 2px solid #2f6d50; outline-offset: 2px; }
+@media (max-width:600px) { .photo-editor-grid { grid-template-columns: 1fr; } }

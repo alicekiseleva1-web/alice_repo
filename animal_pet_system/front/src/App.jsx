@@ -1,7 +1,9 @@
 //содержимое главной страницы, интерфейс приложения
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import AnimalsPage from './AnimalsPage'
+import { AccountPanel, MyAnimals, ReportEditor } from './ProfileEditor'
+import HelpPage from './HelpPage'
 
 const API_URL = 'http://127.0.0.1:8000'
 const CURRENT_USER_ID_STORAGE_KEY = 'animal_help_current_user_id'
@@ -39,6 +41,7 @@ function getSavedUserId() {
 
 function App() {
   const [isAnimalsPage, setIsAnimalsPage] = useState(() => window.location.hash === '#animals')
+  const [isHelpPage, setIsHelpPage] = useState(() => window.location.hash === '#help')
   const [reports, setReports] = useState([])
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -76,8 +79,13 @@ function App() {
   const [loginMessage, setLoginMessage] = useState('')
   const [currentUserId, setCurrentUserId] = useState(getSavedUserId)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [profileTab, setProfileTab] = useState('animals')
   const [profileData, setProfileData] = useState(null)
   const [myReports, setMyReports] = useState([])
+  const [editingReportId, setEditingReportId] = useState(null)
+  const [isAnimalEditing, setIsAnimalEditing] = useState(false)
+  const [isAccountEditing, setIsAccountEditing] = useState(false)
+  const [catalogRevision, setCatalogRevision] = useState(0)
   const [profileStatus, setProfileStatus] = useState('idle')
   const [profileMessage, setProfileMessage] = useState('')
   const [profileActionReportId, setProfileActionReportId] = useState(null)
@@ -116,10 +124,18 @@ function App() {
   const [createReportStatus, setCreateReportStatus] = useState('idle')
   const [createReportMessage, setCreateReportMessage] = useState('')
   const [photoFiles, setPhotoFiles] = useState([])
+  const [publicationNotice, setPublicationNotice] = useState(null)
+  const publicationInFlight = useRef(false)
+  const publicationNoticeRef = useRef(null)
+
+  useEffect(() => {
+    if (publicationNotice) publicationNoticeRef.current?.focus()
+  }, [publicationNotice])
 
   useEffect(() => {
     function handleNavigation() {
       setIsAnimalsPage(window.location.hash === '#animals')
+      setIsHelpPage(window.location.hash === '#help')
       setIsModalOpen(false)
       setIsPhotoViewerOpen(false)
     }
@@ -352,7 +368,7 @@ async function registerUser(event) {
 
   if (!registrationData.city_id) {
     setRegistrationStatus('error')
-    setRegistrationMessage('Выбери город из подсказок')
+    setRegistrationMessage('Выберите город из подсказок')
     return
   }
 
@@ -559,6 +575,10 @@ async function loadProfile() {
 }
 
 function openProfileModal() {
+  setProfileTab('animals')
+  setEditingReportId(null)
+  setIsAnimalEditing(false)
+  setIsAccountEditing(false)
   setProfileMessage('')
   setIsProfileModalOpen(true)
   loadProfile()
@@ -588,6 +608,7 @@ async function changeMyReportStatus(reportId, reportStatusId) {
     }
 
     await loadProfile()
+    setCatalogRevision((value) => value + 1)
     setProfileMessage(data.message)
     await loadReports(null)
   } catch (error) {
@@ -597,7 +618,30 @@ async function changeMyReportStatus(reportId, reportStatusId) {
   }
 }
 
+function handleProfileItemSaved(message) {
+  setEditingReportId(null)
+  setIsAnimalEditing(false)
+  setIsAccountEditing(false)
+  setProfileMessage(message)
+  setCatalogRevision((value) => value + 1)
+  setIsModalOpen(false)
+  setIsPhotoViewerOpen(false)
+  setSelectedReport(null)
+  loadProfile()
+  loadReports(selectedType)
+}
+
+function handlePhotosChanged(message) {
+  setProfileMessage(message)
+  setCatalogRevision((value) => value + 1)
+  setIsModalOpen(false)
+  setIsPhotoViewerOpen(false)
+  setSelectedReport(null)
+  loadReports(selectedType)
+}
+
 function startShelterEditing() {
+  if (isAnimalEditing || editingReportId !== null) return
   if (!shelterData) {
     return
   }
@@ -649,6 +693,7 @@ async function saveShelter(event) {
     })
     setIsShelterEditing(false)
     setProfileMessage('Данные приюта сохранены')
+    setCatalogRevision((value) => value + 1)
   } catch (error) {
     setProfileMessage(error.message)
   } finally {
@@ -682,18 +727,21 @@ function resetCreateReportForm() {
 }
 
 function openCreateReportModal() {
+  if (publicationInFlight.current) return
   if (!currentUserId) {
     setAuthMode('login')
-    setLoginMessage('Сначала войди в аккаунт, чтобы разместить объявление')
+    setLoginMessage('Для размещения объявления необходимо войти в аккаунт')
     setIsAuthModalOpen(true)
     return
   }
 
   resetCreateReportForm()
+  setPublicationNotice(null)
   setIsCreateReportModalOpen(true)
 }
 
 function closeCreateReportModal() {
+  if (publicationInFlight.current) return
   setIsCreateReportModalOpen(false)
   resetCreateReportForm()
 }
@@ -771,7 +819,7 @@ function changePhotoFiles(event) {
     event.target.value = ''
     setPhotoFiles([])
     setCreateReportStatus('error')
-    setCreateReportMessage('Выбери JPEG, PNG или WebP размером до 5 МБ')
+    setCreateReportMessage('Выберите JPEG, PNG или WebP размером до 5 МБ')
     return
   }
 
@@ -799,16 +847,18 @@ function showNextPhoto() {
 
 async function createAnimalAndReport(event) {
   event.preventDefault()
+  if (publicationInFlight.current) return
 
   if (!animalData.city_id) {
     setCreateReportStatus('error')
-    setCreateReportMessage('Выбери город животного из подсказок')
+    setCreateReportMessage('Выберите город животного из подсказок')
     return
   }
 
+  publicationInFlight.current = true
   try {
     setCreateReportStatus('loading')
-    setCreateReportMessage('')
+    setCreateReportMessage('Сохраняется карточка животного…')
 
     const animalResponse = await fetch(API_URL + '/animals', {
       method: 'POST',
@@ -833,6 +883,7 @@ async function createAnimalAndReport(event) {
       )
     }
 
+    setCreateReportMessage('Сохраняется объявление…')
     const reportResponse = await fetch(API_URL + '/report', {
       method: 'POST',
       headers: {
@@ -856,10 +907,14 @@ async function createAnimalAndReport(event) {
       )
     }
 
+    let uploadedPhotos = 0
+    let photoError = ''
     try {
       for (const photoFile of photoFiles) {
+        setCreateReportMessage(`Объявление создано. Загружается фотография ${uploadedPhotos + 1} из ${photoFiles.length}…`)
         const photoData = new FormData()
         photoData.append('animal_id', animalResponseData.animal_id)
+        photoData.append('user_id', currentUserId)
         photoData.append('report_id', reportResponseData.report_id)
         photoData.append('file', photoFile)
 
@@ -877,46 +932,42 @@ async function createAnimalAndReport(event) {
               || 'Не удалось загрузить фотографию',
           )
         }
+        uploadedPhotos += 1
       }
     } catch (error) {
-      setSelectedType(null)
-      await loadReports(null)
-      setCreateReportStatus('error')
-      setCreateReportMessage(
-        'Объявление №'
-          + reportResponseData.report_id
-          + ' опубликовано, но не удалось загрузить все фотографии: '
-          + error.message,
-      )
-      return
+      photoError = error.message || 'Ошибка загрузки фотографии'
     }
 
-    setCreateReportStatus('success')
-    setCreateReportMessage(
-      'Объявление №'
-        + reportResponseData.report_id
-        + ' опубликовано. Фотографий: '
-        + photoFiles.length,
-    )
+    setIsCreateReportModalOpen(false)
+    resetCreateReportForm()
+    setPublicationNotice({
+      kind: photoError ? 'warning' : 'success',
+      message: photoError
+        ? `Объявление опубликовано, но загрузка фотографий завершилась с ошибкой: ${photoError}. Подтверждена загрузка ${uploadedPhotos} из ${photoFiles.length}. Повторная публикация не требуется. Проверьте фотографии в «Профиль → Мои животные → Фотографии» и добавьте недостающие.`
+        : 'Объявление опубликовано',
+    })
     setSelectedType(null)
-    await loadReports(null)
+    setCatalogRevision((revision) => revision + 1)
+    void loadReports(null)
   } catch (error) {
     setCreateReportStatus('error')
     setCreateReportMessage(error.message)
+  } finally {
+    publicationInFlight.current = false
   }
 }
 
   return (
     <div className="app">
       <header className="header">
-        <a className="logo" href="/">
-          Найди друга
+        <a className="logo" href="/" aria-label="Найди друга — на главную">
+          <img src="/favicon.svg" alt="Логотип Найди друга" width="64" height="64" />
         </a>
 
         <nav className="navigation">
           <a href="#reports">Объявления</a>
           <a href="#animals" aria-current={isAnimalsPage ? 'page' : undefined}>Животные</a>
-          <a href="#help">Помощь приютам</a>
+          <a href="#help" aria-current={isHelpPage ? 'page' : undefined}>Помощь приютам</a>
         </nav>
         {currentUserId ? (
           <div className="auth-actions">
@@ -949,8 +1000,17 @@ async function createAnimalAndReport(event) {
         )}
       </header>
 
+      {publicationNotice && (
+        <div className={`publication-notice ${publicationNotice.kind}`}
+          ref={publicationNoticeRef} tabIndex={-1}>
+          <p role="status">{publicationNotice.message}</p>
+          <button type="button" onClick={() => setPublicationNotice(null)} aria-label="Закрыть уведомление">×</button>
+        </div>
+      )}
+
       <main>
-        {isAnimalsPage ? <AnimalsPage apiUrl={API_URL} /> : (
+        {isAnimalsPage ? <AnimalsPage key={catalogRevision} apiUrl={API_URL} />
+          : isHelpPage ? <HelpPage key={(currentUserId || 'guest') + '-' + catalogRevision} apiUrl={API_URL} userId={currentUserId} /> : (
         <>
         <section className="hero-section">
           <p className="eyebrow">Сервис поиска и помощи животным</p>
@@ -1241,16 +1301,9 @@ async function createAnimalAndReport(event) {
 
             {profileStatus === 'success' && profileData && (
               <div className="profile-content">
-                <section className="profile-user-info">
-                  <p className="profile-eyebrow">Личный кабинет</p>
-                  <h2>
-                    {profileData.first_name} {profileData.last_name}
-                  </h2>
-                  <p>Город: {profileData.city_name}</p>
-                  <p>Телефон: {profileData.phone}</p>
-                  <p>Email: {profileData.email}</p>
-                  <p>Карточек животных: {profileData.animals_count}</p>
-                </section>
+                <AccountPanel profile={profileData} userId={currentUserId} apiUrl={API_URL}
+                  onSaved={handleProfileItemSaved} onEditingChange={setIsAccountEditing}
+                  editingDisabled={isAnimalEditing || editingReportId !== null || isShelterEditing || profileActionReportId !== null} />
 
                 {shelterData && (
                   <section className="shelter-profile-section">
@@ -1335,6 +1388,7 @@ async function createAnimalAndReport(event) {
                           className="report-status-button"
                           type="button"
                           onClick={startShelterEditing}
+                          disabled={isAnimalEditing || isAccountEditing || editingReportId !== null || profileActionReportId !== null}
                         >
                           Редактировать данные
                         </button>
@@ -1343,16 +1397,49 @@ async function createAnimalAndReport(event) {
                   </section>
                 )}
 
-                <section className="my-reports-section">
+                <div className="profile-sections">
+                  <div className="profile-tabs" role="tablist" aria-label="Разделы личного кабинета"
+                    onKeyDown={(event) => {
+                      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+                      event.preventDefault()
+                      const tabs = Array.from(event.currentTarget.querySelectorAll('[role="tab"]:not(:disabled)'))
+                      const index = tabs.indexOf(document.activeElement)
+                      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+                        : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+                      tabs[next]?.focus()
+                      tabs[next]?.click()
+                    }}>
+                    {[['animals', 'Мои животные'], ['reports', 'Мои объявления']].map(([id, label]) => (
+                      <button key={id} id={'profile-tab-' + id} type="button" role="tab"
+                        aria-selected={profileTab === id} aria-controls={'profile-panel-' + id}
+                        tabIndex={profileTab === id ? 0 : -1}
+                        disabled={profileTab !== id && (isAnimalEditing || editingReportId !== null || profileActionReportId !== null || isAccountEditing || isShelterEditing)}
+                        onClick={() => { setProfileTab(id); setProfileMessage('') }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {(isAnimalEditing || editingReportId !== null || isAccountEditing || isShelterEditing) && (
+                    <p className="profile-tabs-hint">Перед переключением раздела необходимо сохранить изменения или закрыть форму.</p>
+                  )}
+
+                {profileTab === 'reports' && (
+                <section className="my-reports-section" id="profile-panel-reports" role="tabpanel"
+                  aria-labelledby="profile-tab-reports" tabIndex={0}>
                   <h3>Мои объявления</h3>
 
                   {myReports.length === 0 && (
-                    <p>Ты пока не создавала объявлений.</p>
+                    <p>Объявления отсутствуют.</p>
                   )}
 
                   <div className="my-reports-list">
                     {myReports.map((report) => (
                       <article className="my-report-card" key={report.report_id}>
+                        {editingReportId === report.report_id ? (
+                          <ReportEditor report={report} userId={currentUserId} apiUrl={API_URL}
+                            onSaved={handleProfileItemSaved} onCancel={() => setEditingReportId(null)} />
+                        ) : (
+                        <>
                         <div>
                           <span
                             className={
@@ -1368,6 +1455,12 @@ async function createAnimalAndReport(event) {
                           <p>{report.location}</p>
                         </div>
 
+                        <div className="profile-report-actions">
+                          <button className="report-status-button" type="button"
+                            disabled={editingReportId !== null || profileActionReportId !== null || isAnimalEditing || isAccountEditing || isShelterEditing}
+                            onClick={() => { setProfileMessage(''); setEditingReportId(report.report_id) }}>
+                            Редактировать
+                          </button>
                         <button
                           className="report-status-button"
                           type="button"
@@ -1379,7 +1472,7 @@ async function createAnimalAndReport(event) {
                                 : OPEN_REPORT_STATUS_ID,
                             )
                           }
-                          disabled={profileActionReportId === report.report_id}
+                          disabled={profileActionReportId !== null || editingReportId !== null || isAnimalEditing || isAccountEditing || isShelterEditing}
                         >
                           {profileActionReportId === report.report_id
                             ? 'Сохраняем...'
@@ -1387,10 +1480,24 @@ async function createAnimalAndReport(event) {
                               ? 'Закрыть'
                               : 'Открыть снова'}
                         </button>
+                        </div>
+                        </>
+                        )}
                       </article>
                     ))}
                   </div>
                 </section>
+                )}
+
+                {profileTab === 'animals' && (
+                <div id="profile-panel-animals" role="tabpanel" aria-labelledby="profile-tab-animals" tabIndex={0}>
+                <MyAnimals userId={currentUserId} apiUrl={API_URL} onSaved={handleProfileItemSaved}
+                  onPhotosChanged={handlePhotosChanged}
+                  editingDisabled={isAccountEditing || editingReportId !== null || isShelterEditing || profileActionReportId !== null}
+                  onEditingChange={setIsAnimalEditing} />
+                </div>
+                )}
+                </div>
 
                 {profileMessage && (
                   <p className="profile-message success">{profileMessage}</p>
@@ -1418,14 +1525,16 @@ async function createAnimalAndReport(event) {
               type="button"
               onClick={closeCreateReportModal}
               aria-label="Закрыть окно"
+              disabled={createReportStatus === 'loading'}
             >
               ×
             </button>
 
-            <form className="create-report-form" onSubmit={createAnimalAndReport}>
+            <form onSubmit={createAnimalAndReport} aria-busy={createReportStatus === 'loading'}>
+            <fieldset className="create-report-form" disabled={createReportStatus === 'loading'}>
               <h2>Новое объявление</h2>
               <p className="create-report-intro">
-                Сначала заполни карточку животного, затем данные объявления.
+                Сначала заполните карточку животного, затем данные объявления.
               </p>
 
               <h3>Животное</h3>
@@ -1517,7 +1626,7 @@ async function createAnimalAndReport(event) {
                   type="text"
                   value={animalCityQuery}
                   onChange={changeAnimalCityQuery}
-                  placeholder="Начни вводить город"
+                  placeholder="Начните вводить город"
                   autoComplete="off"
                   required
                 />
@@ -1657,19 +1766,19 @@ async function createAnimalAndReport(event) {
                 type="submit"
                 disabled={
                   createReportStatus === 'loading'
-                  || createReportStatus === 'success'
                 }
               >
                 {createReportStatus === 'loading'
-                  ? 'Публикуем...'
+                  ? createReportMessage
                   : 'Опубликовать объявление'}
               </button>
 
               {createReportMessage && (
-                <p className={"create-report-message " + createReportStatus}>
+                <p role={createReportStatus === 'error' ? 'alert' : 'status'} className={"create-report-message " + createReportStatus}>
                   {createReportMessage}
                 </p>
               )}
+            </fieldset>
             </form>
           </section>
         </div>
@@ -1716,7 +1825,7 @@ async function createAnimalAndReport(event) {
             {authMode === 'login' ? (
               <form className="login-form" onSubmit={loginUser}>
                 <h2>С возвращением</h2>
-                <p>Войди, чтобы продолжить работу с сервисом.</p>
+                <p>Для продолжения работы с сервисом необходимо войти в аккаунт.</p>
 
                 <label>
                   Email

@@ -27,3 +27,5 @@ create index idx_help_request_shelter
 
 create index idx_help_request_status
     on main.help_request(help_request_status_id);
+
+create index idx_help_request_category on main.help_request(help_category_id);

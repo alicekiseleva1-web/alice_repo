@@ -12,9 +12,16 @@
 }
 
 .logo {
-  color: #2f6d50;
-  font-size: 24px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.logo img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
 }
 
 .navigation {
@@ -449,9 +456,37 @@
 
 .profile-content {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
 }
+
+.profile-sections { min-width: 0; }
+.profile-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  margin-bottom: 24px;
+  border-radius: 16px;
+  background: #f0f5f1;
+}
+.profile-tabs button {
+  flex: 1 1 180px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #52615a;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.profile-tabs button:hover:not(:disabled) { background: #dcebe1; }
+.profile-tabs button[aria-selected='true'] { background: #2f6d50; color: white; }
+.profile-tabs button:disabled { opacity: .5; cursor: default; }
+.profile-tabs button:focus-visible,
+.profile-sections [role='tabpanel']:focus-visible { outline: 3px solid #79a68b; outline-offset: 3px; }
+.profile-tabs-hint { margin: -8px 0 20px; color: #52615a; font-size: 14px; line-height: 1.5; }
 
 .profile-user-info {
   padding: 24px;
@@ -971,9 +1006,13 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
-  margin-top: 24px;
+  min-width: 0;
+  margin: 24px 0 0;
+  padding: 0;
+  border: 0;
 }
 
+.create-report-form h2,
 .create-report-form h3,
 .create-report-intro,
 .form-wide-field,
@@ -1069,6 +1108,45 @@
 
 .create-report-message.error {
   color: #b42318;
+}
+
+.publication-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 18px 20px;
+  border: 1px solid #a8cdb5;
+  border-radius: 14px;
+  background: #edf7ef;
+  color: #1d5132;
+}
+
+.publication-notice.warning {
+  border-color: #e2c37b;
+  background: #fff8e8;
+  color: #704d0f;
+}
+
+.publication-notice p {
+  flex: 1;
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.publication-notice button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.publication-notice:focus,
+.publication-notice button:focus-visible {
+  outline: 2px solid #2f6d50;
+  outline-offset: 3px;
 }
 
 .registration-form {
